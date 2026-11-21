@@ -50,6 +50,7 @@ export default {
         case 'POST /api/salir': return json(await salirCuenta(request, env));
         case 'POST /api/cuenta': return json(await actualizarCuenta(request, env));
         case 'POST /api/cuatro': return json(await guardarCuatro(request, env));
+        case 'POST /api/avatar': return json(await guardarAvatar(request, env));
         case 'GET /api/perfil-amigo': return json(await perfilAmigo(request, env, url));
         case 'GET /api/invitacion': return json(await verInvitacion(env, url.searchParams.get('codigo')));
         case 'POST /api/perfil': return json(await guardarPerfil(request, env));
@@ -398,21 +399,21 @@ async function actividad(request, env) {
   const desde = diasAtras(60);
   const [e, p] = await env.DB.batch([
     env.DB.prepare(
-      'SELECT e.*, pf.id AS id_perfil, pf.nombre, ' +
+      'SELECT e.*, pf.id AS id_perfil, pf.nombre, pf.avatar, ' +
       '(SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas, ' +
       '(SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id AND v.id_perfil = ?1) AS mio ' +
       'FROM entradas e JOIN perfil_dispositivos pd ON pd.id_dispositivo = e.id_dispositivo JOIN perfiles pf ON pf.id = pd.id_perfil ' +
       'WHERE (pd.id_perfil = ?1 OR pd.id_perfil IN (SELECT b FROM amistades WHERE a = ?1)) AND e.creado >= ?2 ORDER BY e.creado DESC LIMIT 60'
     ).bind(perfil.id, desde),
     env.DB.prepare(
-      'SELECT pp.id_lugar, pp.fecha, pf.id AS id_perfil, pf.nombre FROM por_probar pp JOIN perfil_dispositivos pd ON pd.id_dispositivo = pp.id_dispositivo JOIN perfiles pf ON pf.id = pd.id_perfil ' +
+      'SELECT pp.id_lugar, pp.fecha, pf.id AS id_perfil, pf.nombre, pf.avatar FROM por_probar pp JOIN perfil_dispositivos pd ON pd.id_dispositivo = pp.id_dispositivo JOIN perfiles pf ON pf.id = pd.id_perfil ' +
       'WHERE pd.id_perfil IN (SELECT b FROM amistades WHERE a = ?1) AND pp.fecha >= ?2 ORDER BY pp.fecha DESC LIMIT 30'
     ).bind(perfil.id, desde)
   ]);
   const eventos = e.results.map((f) => Object.assign(aEntrada(f), {
-    tipo: 'anoto', idPerfil: f.id_perfil, nombre: f.nombre, propio: f.id_perfil === perfil.id, mio: !!f.mio
+    tipo: 'anoto', idPerfil: f.id_perfil, nombre: f.nombre, avatar: leerAvatar(f.avatar), propio: f.id_perfil === perfil.id, mio: !!f.mio
   })).concat(p.results.map((f) => ({
-    tipo: 'por_probar', idLugar: f.id_lugar, idPerfil: f.id_perfil, nombre: f.nombre, propio: false, creado: Date.parse(f.fecha) || 0
+    tipo: 'por_probar', idLugar: f.id_lugar, idPerfil: f.id_perfil, nombre: f.nombre, avatar: leerAvatar(f.avatar), propio: false, creado: Date.parse(f.fecha) || 0
   })));
   eventos.sort((a, b) => b.creado - a.creado);
   return { ok: true, eventos: eventos.slice(0, 80) };
@@ -528,6 +529,15 @@ async function actualizarCuenta(request, env) {
 
 // ====================== PERFIL DE UN AMIGO Y "MIS CUATRO" ======================
 
+async function guardarAvatar(request, env) {
+  const usuario = await usuarioDe(request, env);
+  if (!usuario) return { ok: false, sesion: true, mensaje: 'Tu sesión se cerró. Entra otra vez.' };
+  const avatar = leerAvatar((await leerCuerpo(request)).avatar);
+  if (!avatar) return { ok: false, mensaje: 'Elige un personaje.' };
+  await env.DB.prepare('UPDATE perfiles SET avatar = ? WHERE id = ?').bind(JSON.stringify(avatar), usuario.id).run();
+  return { ok: true, avatar };
+}
+
 async function guardarCuatro(request, env) {
   const usuario = await usuarioDe(request, env);
   if (!usuario) return { ok: false, sesion: true };
@@ -558,7 +568,7 @@ async function perfilAmigo(request, env, url) {
   ]);
   return {
     ok: true,
-    perfil: { id: amigo.id, nombre: amigo.nombre, cuatro: leerCuatro(amigo.cuatro), amigos: n.results[0].n },
+    perfil: { id: amigo.id, nombre: amigo.nombre, avatar: leerAvatar(amigo.avatar), cuatro: leerCuatro(amigo.cuatro), amigos: n.results[0].n },
     entradas: e.results.map((f) => Object.assign(aEntrada(f), { mio: !!f.mio })),
     porProbar: p.results.map((f) => ({ idLugar: f.id_lugar, fecha: Date.parse(f.fecha) || 0 }))
   };
@@ -632,7 +642,22 @@ async function usuarioDe(request, env) {
   return usuario;
 }
 
-function aPerfil(f) { return f ? { id: f.id, nombre: f.nombre, color: f.color, codigo: f.codigo, cuatro: f.cuatro || null } : null; }
+function aPerfil(f) { return f ? { id: f.id, nombre: f.nombre, color: f.color, codigo: f.codigo, cuatro: f.cuatro || null, avatar: leerAvatar(f.avatar) } : null; }
+
+// Avatar: personaje + gesto + color del círculo + frase corta. Se guarda como JSON en perfiles.avatar.
+const PERSONAJES = ['oso', 'zorro', 'perro', 'coneja', 'gata'];
+const FONDOS = ['mostaza', 'salvia', 'naranja', 'arena', 'rojo'];
+function leerAvatar(t) {
+  let a = t;
+  if (typeof t === 'string') { try { a = JSON.parse(t); } catch (e) { return null; } }
+  if (!a || typeof a !== 'object' || !PERSONAJES.includes(a.p)) return null;
+  return {
+    p: a.p,
+    g: a.g === 1 ? 1 : 0,
+    f: FONDOS.includes(a.f) ? a.f : 'mostaza',
+    frase: limpiarTexto(a.frase, 60)
+  };
+}
 function leerCuatro(t) { try { const a = JSON.parse(t || 'null'); return Array.isArray(a) && a.length === 4 ? a.map((x) => (typeof x === 'string' ? x.slice(0, 40) : null)) : null; } catch (e) { return null; } }
 
 async function perfilDe(env, idUsuario) {
@@ -661,14 +686,14 @@ function agruparProbados(filas) {
 
 async function amigosDe(env, idPerfil) {
   const [lista, prob] = await env.DB.batch([
-    env.DB.prepare('SELECT p.id, p.nombre, p.color, a.fecha FROM amistades a JOIN perfiles p ON p.id = a.b WHERE a.a = ? ORDER BY p.nombre').bind(idPerfil),
+    env.DB.prepare('SELECT p.id, p.nombre, p.color, p.avatar, a.fecha FROM amistades a JOIN perfiles p ON p.id = a.b WHERE a.a = ? ORDER BY p.nombre').bind(idPerfil),
     env.DB.prepare(
       'SELECT pd.id_perfil, e.id_lugar, e.cal AS calificacion, e.creado AS fecha FROM amistades a ' +
       'JOIN perfil_dispositivos pd ON pd.id_perfil = a.b JOIN entradas e ON e.id_dispositivo = pd.id_dispositivo WHERE a.a = ?'
     ).bind(idPerfil)
   ]);
   const porPerfil = agruparProbados(prob.results);
-  return lista.results.map((f) => ({ id: f.id, nombre: f.nombre, color: f.color, desde: Date.parse(f.fecha) || 0, probados: porPerfil[f.id] || {} }));
+  return lista.results.map((f) => ({ id: f.id, nombre: f.nombre, color: f.color, avatar: leerAvatar(f.avatar), desde: Date.parse(f.fecha) || 0, probados: porPerfil[f.id] || {} }));
 }
 
 async function yo(request, env, url) {

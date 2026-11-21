@@ -306,6 +306,27 @@
   .amigos-fila button { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 64px; padding: 0; border: 0; background: none; font-size: .78rem; font-weight: 500; }
   .amigos-fila .inicial { width: 54px; height: 54px; font-size: 1.3rem; }
   .amigos-fila .invitar .inicial { background: transparent; border: 2px dashed var(--gris); }
+
+  /* ---------- Avatares ---------- */
+  .con-cara { overflow: hidden; padding: 0; border: 2px solid var(--chocolate); }
+  .avatar.con-cara { border-width: 3px; }
+  .con-cara img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .avatar-editable { position: relative; cursor: pointer; }
+  .avatar-editable .lapiz { position: absolute; right: -4px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%; background: var(--leche); border: 2px solid var(--chocolate); display: grid; place-items: center; font-size: .8rem; line-height: 1; }
+  .frase { margin: 4px 0 0; font-size: .92rem; color: var(--chocolate-2); font-style: italic; }
+  .av-escena { width: 190px; height: 190px; margin: 0 auto 6px; border-radius: 50%; border: 3px solid var(--chocolate); display: grid; place-items: end center; overflow: hidden; transition: background-color .25s; }
+  .av-escena img { width: 74%; height: auto; margin-bottom: -6%; }
+  .av-titulo { margin: 16px 0 8px; font-weight: 700; }
+  .av-opciones { display: flex; gap: 6px; justify-content: space-between; overflow-x: auto; padding: 4px 4px 6px; scrollbar-width: none; }
+  .av-opciones::-webkit-scrollbar { display: none; }
+  .av-opciones button { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 62px; padding: 0; border: 0; background: none; font-size: .74rem; line-height: 1.15; font-weight: 500; color: var(--chocolate); }
+  .av-opciones .bola { width: 54px; height: 54px; border-radius: 50%; overflow: hidden; border: 2px solid var(--tostada); background: var(--arena); }
+  .av-opciones .bola img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .av-opciones button[aria-pressed="true"] .bola { border: 3px solid var(--chocolate); box-shadow: 0 0 0 3px var(--mostaza); }
+  .av-opciones button[aria-pressed="true"] { font-weight: 700; }
+  .av-colores { display: flex; gap: 12px; padding: 4px; }
+  .av-colores button { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--chocolate); padding: 0; }
+  .av-colores button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--leche), 0 0 0 6px var(--chocolate); }
   .enlace-invitacion { display: block; margin: 10px 0; padding: 10px 12px; border-radius: 14px; background: var(--crema); font-size: .82rem; word-break: break-all; user-select: all; }
   .boton-google { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 56px; border: 2px solid var(--chocolate); border-radius: 30px; background: var(--leche); font-weight: 700; font-size: 1.05rem; }
   .boton-google svg { width: 22px; height: 22px; }
@@ -963,10 +984,59 @@
     else if (vista === 'perfil') pintarPerfil();
     if (lugarAbierto && $('hoja-lugar').classList.contains('abierta')) pintarLugar();
   }
+  // ---------------- Avatares ----------------
+  const PERSONAJES = [['oso', 'Oso'], ['zorro', 'Zorro'], ['perro', 'Perro caliente'], ['coneja', 'Coneja'], ['gata', 'Gata']];
+  const GESTOS = ['Tranquilo', 'Antojado'];
+  const FONDOS = { mostaza: '#F2C230', salvia: '#A9BE95', naranja: '#F0A872', arena: '#F1D6B8', rojo: '#E7826F' };
+  const NOMBRES_FONDO = { mostaza: 'Mostaza', salvia: 'Salvia', naranja: 'Durazno', arena: 'Arena', rojo: 'Tomate' };
+  function imgCara(av) { return '/img/av-' + av.p + '-' + av.g + '-cara.webp'; }
+  /** Círculo con la cara del personaje, o la inicial si todavía no lo eligió. */
+  function circulo(clase, av, nombre) {
+    if (av) return '<span class="' + clase + ' con-cara" style="background:' + FONDOS[av.f] + '" aria-hidden="true"><img src="' + imgCara(av) + '" alt="" loading="lazy"></span>';
+    return '<span class="' + clase + '" aria-hidden="true">' + escapar((nombre || '?').charAt(0).toUpperCase()) + '</span>';
+  }
+  function abrirEditorAvatar() {
+    const p = yoDatos && yoDatos.perfil;
+    if (!p) return;
+    const b = Object.assign({ p: 'oso', g: 0, f: 'mostaza', frase: '' }, p.avatar || {});
+    abrirElegir('Tu personaje', [], null, '<div id="av-editor"></div>');
+    const caja = $('av-editor');
+    function pinta() {
+      caja.innerHTML =
+        '<div class="av-escena" style="background:' + FONDOS[b.f] + '"><img src="/img/av-' + b.p + '-' + b.g + '.webp" alt="' + escapar(PERSONAJES.find((x) => x[0] === b.p)[1]) + ', ' + GESTOS[b.g].toLowerCase() + '"></div>' +
+        '<p class="av-titulo">Personaje</p><div class="av-opciones">' + PERSONAJES.map(([k, t]) =>
+          '<button type="button" data-av-p="' + k + '" aria-pressed="' + (b.p === k) + '"><span class="bola" style="background:' + FONDOS[b.f] + '"><img src="' + imgCara({ p: k, g: 0 }) + '" alt=""></span>' + t + '</button>').join('') + '</div>' +
+        '<p class="av-titulo">Gesto</p><div class="av-opciones" style="justify-content:flex-start;gap:14px">' + GESTOS.map((t, i) =>
+          '<button type="button" data-av-g="' + i + '" aria-pressed="' + (b.g === i) + '"><span class="bola" style="background:' + FONDOS[b.f] + '"><img src="' + imgCara({ p: b.p, g: i }) + '" alt=""></span>' + t + '</button>').join('') + '</div>' +
+        '<p class="av-titulo">Color del círculo</p><div class="av-colores">' + Object.keys(FONDOS).map((k) =>
+          '<button type="button" data-av-f="' + k + '" aria-pressed="' + (b.f === k) + '" aria-label="' + NOMBRES_FONDO[k] + '" style="background:' + FONDOS[k] + '"></button>').join('') + '</div>' +
+        '<label class="campo" style="margin-top:18px">Tu frase <span class="opcional">(opcional)</span><input id="av-frase" type="text" maxlength="60" placeholder="Mi antojo: buñuelo con chocolate" value="' + escapar(b.frase) + '"></label>' +
+        '<p id="av-error" class="error-campo" hidden></p><button type="button" class="principal" id="av-guardar">Guardar</button>';
+    }
+    pinta();
+    caja.addEventListener('input', (e) => { if (e.target.id === 'av-frase') b.frase = e.target.value; });
+    caja.addEventListener('click', async (e) => {
+      const t = e.target.closest('button');
+      if (!t) return;
+      if (t.dataset.avP) { b.p = t.dataset.avP; pinta(); }
+      else if (t.dataset.avG) { b.g = Number(t.dataset.avG); pinta(); }
+      else if (t.dataset.avF) { b.f = t.dataset.avF; pinta(); }
+      else if (t.id === 'av-guardar') {
+        t.disabled = true;
+        const r = await pedir('/api/avatar', { avatar: { p: b.p, g: b.g, f: b.f, frase: b.frase.trim() } }).catch(() => null);
+        if (!r || !r.ok) { t.disabled = false; $('av-error').textContent = (r && r.mensaje) || 'No pudimos guardar. Revisa tu conexión.'; $('av-error').hidden = false; return; }
+        yoDatos.perfil.avatar = r.avatar;
+        cerrarElegir(); pintarAvatarInicio(); repintar(); avisar('Listo, así te ven tus amigos.');
+      }
+    });
+  }
   function pintarAvatarInicio() {
     const p = yoDatos && yoDatos.perfil;
     const av = $('inicio-avatar');
-    if (p) av.textContent = (p.nombre || '?').charAt(0).toUpperCase();
+    av.classList.toggle('con-cara', !!(p && p.avatar));
+    av.style.background = p && p.avatar ? FONDOS[p.avatar.f] : '';
+    if (p && p.avatar) av.innerHTML = '<img src="' + imgCara(p.avatar) + '" alt="">';
+    else if (p) av.textContent = (p.nombre || '?').charAt(0).toUpperCase();
     else av.innerHTML = '<img src="/img/oso-cabeza.webp" alt="" style="width:34px;height:34px;object-fit:contain">';
   }
 
@@ -1596,9 +1666,14 @@
     const p = yoDatos && yoDatos.perfil;
     const ult = ultimas();
     const nAmigos = yoDatos && yoDatos.amigos ? yoDatos.amigos.length : 0;
-    let h = '<header class="cabeza"><div class="fila"><span class="avatar grande" aria-hidden="true">' + (p ? escapar(p.nombre.charAt(0).toUpperCase()) : '<img src="/img/oso-cabeza.webp" alt="" style="width:46px;height:46px;object-fit:contain">') + '</span>' +
+    const fotoPerfil = p
+      ? '<button type="button" class="avatar-editable" style="padding:0;border:0;background:none" data-accion="editar-avatar" aria-label="Editar tu personaje">' + circulo('avatar grande', p.avatar, p.nombre) + '<span class="lapiz" aria-hidden="true">✎</span></button>'
+      : '<span class="avatar grande" aria-hidden="true"><img src="/img/oso-cabeza.webp" alt="" style="width:46px;height:46px;object-fit:contain"></span>';
+    let h = '<header class="cabeza"><div class="fila">' + fotoPerfil +
       '<div><h1 style="margin:0;font-size:1.6rem;line-height:1.1">' + escapar(p ? p.nombre : 'Tu diario') + '</h1>' +
-      '<p class="sub">' + (p ? nAmigos + (nAmigos === 1 ? ' amigo' : ' amigos') + ' · ' : '') + 'sigues ' + seguidas.size + (seguidas.size === 1 ? ' lista' : ' listas') + '</p></div></div>' +
+      '<p class="sub">' + (p ? nAmigos + (nAmigos === 1 ? ' amigo' : ' amigos') + ' · ' : '') + 'sigues ' + seguidas.size + (seguidas.size === 1 ? ' lista' : ' listas') + '</p>' +
+      (p && p.avatar && p.avatar.frase ? '<p class="frase">“' + escapar(p.avatar.frase) + '”</p>' : '') +
+      (p && !p.avatar ? '<button type="button" class="enlace" style="padding:0;margin-top:4px" data-accion="editar-avatar">Elige tu personaje</button>' : '') + '</div></div>' +
       (p ? '<button type="button" class="enlace" data-accion="cuenta">Cuenta</button>'
          : '<button type="button" class="secundario" style="min-height:42px;padding:0 14px" data-accion="ir" data-vista="actividad">Entrar</button>') + '</header>';
     h += '<div class="stats"><div><b>' + ult.size + '</b><span>' + (ult.size === 1 ? 'probado' : 'probados') + '</span></div>' +
@@ -1814,7 +1889,7 @@
     }
     const amigos = yoDatos.amigos || [];
     let h = '<div class="amigos-fila" aria-label="Tus amigos">' + amigos.map((a) =>
-      '<button type="button" data-accion="abrir-amigo" data-id="' + escapar(a.id) + '"><span class="inicial">' + escapar(a.nombre.charAt(0).toUpperCase()) + '</span>' + escapar(a.nombre.split(' ')[0]) + '</button>').join('') +
+      '<button type="button" data-accion="abrir-amigo" data-id="' + escapar(a.id) + '">' + circulo('inicial', a.avatar, a.nombre) + escapar(a.nombre.split(' ')[0]) + '</button>').join('') +
       '<button type="button" class="invitar" data-accion="invitar"><span class="inicial">+</span>Invitar</button></div>';
     h += '<div class="pastillas" role="tablist" style="margin-top:16px">' + [['amigos', 'Amigos'], ['tu', 'Tú']].map(([k, t]) =>
       '<button type="button" class="pastilla' + (subActividad === k ? ' on' : '') + '" role="tab" aria-selected="' + (subActividad === k) + '" data-accion="sub-actividad" data-sub="' + k + '">' + t + '</button>').join('') + '</div>';
@@ -1829,13 +1904,13 @@
     const quien = e.propio ? 'Tú' : '<button type="button" class="sitio" data-accion="abrir-amigo" data-id="' + escapar(e.idPerfil) + '">' + escapar(e.nombre) + '</button>';
     const sitio = '<button type="button" class="sitio" data-accion="abrir-lugar" data-id="' + escapar(l.id) + '">' + escapar(l.nombre) + '</button>';
     if (e.tipo === 'por_probar') {
-      return '<li class="evento"><span class="inicial" aria-hidden="true">' + escapar(e.nombre.charAt(0).toUpperCase()) + '</span><div><p><strong>' + quien + '</strong> agregó ' + sitio + ' a Por probar</p>' +
+      return '<li class="evento">' + circulo('inicial', e.avatar, e.nombre) + '<div><p><strong>' + quien + '</strong> agregó ' + sitio + ' a Por probar</p>' +
         '<div class="pie"><small>' + haceCuanto(e.creado) + '</small>' + corazonTexto(l.id) + '</div></div></li>';
     }
     const prov = e.propio
       ? (e.provocas ? '<small>' + e.provocas + ' me provoca</small>' : '')
       : '<button type="button" class="provoca" data-accion="provocar" data-id="' + escapar(e.id) + '" aria-pressed="' + !!e.mio + '"><svg aria-hidden="true"><use href="#i-corazon"/></svg>Me provoca' + (e.provocas ? ' · ' + e.provocas : '') + '</button>';
-    return '<li class="evento"><span class="inicial' + (e.propio ? ' tu' : '') + '" aria-hidden="true">' + escapar((e.propio ? (yoDatos.perfil.nombre || 'T') : e.nombre).charAt(0).toUpperCase()) + '</span><div>' +
+    return '<li class="evento">' + (e.propio ? circulo('inicial tu', yoDatos.perfil.avatar, yoDatos.perfil.nombre || 'T') : circulo('inicial', e.avatar, e.nombre)) + '<div>' +
       '<p><strong>' + quien + '</strong> ' + (e.propio ? 'anotaste' : 'anotó') + ' ' + sitio + '</p><div style="margin-top:6px">' + calHtml(e.cal, 20) + '</div>' +
       (e.resena ? '<p class="resena">“' + escapar(e.resena) + '”</p>' : '') +
       '<div class="pie"><small>' + escapar(fechaCorta(e.fecha)) + (e.volveria === true ? ' · volvería' : (e.volveria === false ? ' · no volvería' : '')) + '</small>' + prov + '</div></div></li>';
@@ -1864,8 +1939,9 @@
     const lugaresProbados = new Set(r.entradas.map((e) => e.idLugar));
     const rch = racha(r.entradas);
     const c4 = Array.isArray(p.cuatro) ? p.cuatro : [null, null, null, null];
-    let h = '<div class="fila" style="margin:-2px 0 4px"><span class="avatar grande" aria-hidden="true">' + escapar(p.nombre.charAt(0).toUpperCase()) + '</span>' +
-      '<p class="sub" style="margin:0">' + p.amigos + (p.amigos === 1 ? ' amigo' : ' amigos') + ' en Apetitosos</p></div>';
+    let h = '<div class="fila" style="margin:-2px 0 4px">' + circulo('avatar grande', p.avatar, p.nombre) +
+      '<div><p class="sub" style="margin:0">' + p.amigos + (p.amigos === 1 ? ' amigo' : ' amigos') + ' en Apetitosos</p>' +
+      (p.avatar && p.avatar.frase ? '<p class="frase">“' + escapar(p.avatar.frase) + '”</p>' : '') + '</div></div>';
     h += '<div class="stats"><div><b>' + lugaresProbados.size + '</b><span>' + (lugaresProbados.size === 1 ? 'probado' : 'probados') + '</span></div>' +
       '<div><b>' + rch + '</b><span>' + (rch === 1 ? 'semana de racha' : 'semanas de racha') + '</span></div>' +
       '<div><b>' + r.porProbar.length + '</b><span>por probar</span></div></div>';
@@ -2121,6 +2197,7 @@
       case 'favorito': elegirFavorito(Number(b.dataset.pos)); break;
       case 'quitar-favorito': cuatro[Number(b.dataset.pos)] = null; guardarLocal(CLAVE_CUATRO, cuatro); guardarCuatroServidor(); cerrarElegir(); pintarPerfil(); break;
       case 'cuenta': abrirCuenta(); break;
+      case 'editar-avatar': abrirEditorAvatar(); break;
       case 'resumen': abrirWrapped(); break;
       case 'entrar-google': entrarConGoogle(); break;
       case 'modo-cuenta': modoCuenta = b.dataset.modo; pintarActividad(); break;

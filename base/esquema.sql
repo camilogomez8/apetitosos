@@ -126,3 +126,9 @@ CREATE TABLE IF NOT EXISTS sesiones (
   vence TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sesiones_perfil ON sesiones(id_perfil);
+
+-- ---------- Un voto por persona y "Mis cuatro" en el servidor (21 nov. 2026) ----------
+ALTER TABLE votos ADD COLUMN id_perfil TEXT;
+ALTER TABLE perfiles ADD COLUMN cuatro TEXT;          -- JSON con 4 ids de sitio o null
+ALTER TABLE perfiles ADD COLUMN avatar TEXT;          -- JSON {p: personaje, g: gesto 0/1, f: color del círculo, frase}
+CREATE INDEX IF NOT EXISTS idx_votos_perfil ON votos(id_lugar, id_perfil);
