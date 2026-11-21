@@ -601,7 +601,7 @@
 <section id="hoja-anotar" class="hoja completa" role="dialog" aria-modal="true" aria-labelledby="a-titulo">
   <div class="fila entre">
     <button type="button" class="circulo" data-accion="cerrar-hojas" aria-label="Volver"><svg aria-hidden="true"><use href="#i-atras"/></svg></button>
-    <strong id="a-titulo" style="font-weight:500;font-size:1.15rem">Nueva comanda</strong>
+    <strong id="a-titulo" style="font-weight:500;font-size:1.15rem">Anotar un buñuelo</strong>
     <span style="width:50px"></span>
   </div>
   <div class="segmento" id="a-modo" style="margin-top:16px">
@@ -898,8 +898,8 @@
     return d.toISOString().slice(0, 10);
   }
   /** Semanas seguidas con al menos una anotación (cuenta si anotaste esta semana o la anterior). */
-  function racha() {
-    const semanas = new Set(entradas.map((e) => lunes(e.fecha)));
+  function racha(lista) {
+    const semanas = new Set((lista || entradas).map((e) => lunes(e.fecha)));
     let s = lunes(hoyBogota());
     if (!semanas.has(s)) {
       const d = new Date(s + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 7); s = d.toISOString().slice(0, 10);
@@ -923,6 +923,14 @@
       // Las listas que se seguían solo en este teléfono pasan al servidor una vez.
       const viejas = leerLocal(CLAVE_SEGUIDAS_VIEJA, null);
       seguidas = new Set(r.seguidas || []);
+      // Los votos de todos tus teléfonos: así no se vota dos veces por el mismo sitio
+      (r.votados || []).forEach((id) => votados.add(id));
+      guardarLocal(CLAVE_VOTADOS, Array.from(votados));
+      // Mis cuatro: con cuenta viven en el servidor (así tus amigos los ven)
+      if (tokenSesion) {
+        if (Array.isArray(r.cuatro) && r.cuatro.some(Boolean)) { cuatro = r.cuatro; guardarLocal(CLAVE_CUATRO, cuatro); }
+        else if (cuatro.some(Boolean)) guardarCuatroServidor();
+      }
       if (Array.isArray(viejas) && viejas.length) {
         viejas.forEach((id) => { if (!seguidas.has(id)) { seguidas.add(id); pedir('/api/seguir', { idDispositivo, idLista: id }).catch(() => {}); } });
         guardarLocal(CLAVE_SEGUIDAS_VIEJA, null);
@@ -1459,7 +1467,7 @@
       Object.assign(anotacion, { idLugar: entrada.idLugar, cal: entrada.cal, fecha: entrada.fecha, volveria: entrada.volveria, id: entrada.id });
       $('a-resena').value = entrada.resena || '';
     }
-    $('a-titulo').textContent = entrada ? 'Editar comanda' : 'Nueva comanda';
+    $('a-titulo').textContent = entrada ? 'Editar anotación' : 'Anotar un buñuelo';
     $('a-modo').hidden = !!entrada;
     $('a-borrar').hidden = !entrada;
     $('a-error').hidden = true;
@@ -1472,7 +1480,7 @@
     document.querySelectorAll('[data-accion="modo-anotar"]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.modo === a.modo)));
     const l = a.idLugar && lugarPorId(a.idLugar);
     $('a-sitio').innerHTML = l
-      ? '<div class="sitio-elegido">' + bun() + '<div style="flex:1;min-width:0"><span class="mono">MESA · ' + escapar(fechaCorta(a.fecha).toUpperCase()) + '</span><strong>' + escapar(l.nombre) + '</strong>' +
+      ? '<div class="sitio-elegido">' + bun() + '<div style="flex:1;min-width:0"><strong>' + escapar(l.nombre) + '</strong>' +
         '<span class="sub" style="display:block;margin:0">' + escapar(l.barrio || 'Bogotá') + ' · ' + escapar(formatoPrecio(l.precio)) + '</span></div>' +
         (a.id ? '' : '<button type="button" class="enlace" data-accion="elegir-sitio">Cambiar</button>') + '</div>'
       : '<button type="button" class="secundario" style="width:100%" data-accion="elegir-sitio">Elige el sitio</button>';
@@ -1621,8 +1629,10 @@
       : '<button type="button" class="boton-resumen" style="background:var(--tostada);color:var(--chocolate)" data-accion="resumen">Tu resumen buñuelero llega el ' + fechaLarga(CONFIG.resumenDesde) + '</button>';
     $('perfil-contenido').innerHTML = h;
   }
-  function htmlDiario() {
-    const lista = entradasOrdenadas().filter((e) => lugarPorId(e.idLugar));
+  function htmlDiario(ajenas) {
+    const editable = !ajenas;
+    const lista = (ajenas || entradasOrdenadas()).filter((e) => lugarPorId(e.idLugar));
+    if (!lista.length && ajenas) return '<p class="vacio">Todavía no ha anotado buñuelos.</p>';
     if (!lista.length) return oso('piensa') + '<p class="vacio" style="text-align:center">Tu diario está vacío. Cuando pruebes un buñuelo, toca el + de abajo y anótalo con su fecha.</p>';
     let mesActual = '', h = '';
     lista.forEach((e) => {
@@ -1630,12 +1640,15 @@
       const mes = MESES_LARGOS[m - 1] + ' ' + y;
       if (mes !== mesActual) { if (mesActual) h += '</ul>'; h += '<p class="mono mes">' + mes.toUpperCase() + '</p><ul class="filas">'; mesActual = mes; }
       const l = lugarPorId(e.idLugar);
-      h += '<li><button type="button" class="dia" data-accion="editar-entrada" data-id="' + escapar(e.id) + '" aria-label="' + escapar(l.nombre) + ', ' + d + ' de ' + MESES_LARGOS[m - 1] + '. Editar">' +
+      h += '<li><button type="button" class="dia" data-accion="' + (editable ? 'editar-entrada' : 'abrir-lugar') + '" data-id="' + escapar(editable ? e.id : e.idLugar) + '" aria-label="' + escapar(l.nombre) + ', ' + d + ' de ' + MESES_LARGOS[m - 1] + (editable ? '. Editar' : '') + '">' +
         '<span class="fecha"><b>' + String(d).padStart(2, '0') + '</b><span class="mono">' + MESES[m - 1] + '</span></span>' +
         '<span style="min-width:0"><strong>' + escapar(l.nombre) + '</strong><small>' + (e.resena ? '“' + escapar(e.resena) + '”' : (e.volveria === true ? 'Volvería' : (e.volveria === false ? 'No volvería' : escapar(l.barrio || '')))) +
         (e.provocas ? ' · ' + e.provocas + ' me provoca' : '') + '</small></span>' + calHtml(e.cal, 16) + '</button></li>';
     });
     return h + '</ul>';
+  }
+  function guardarCuatroServidor() {
+    if (tokenSesion) pedir('/api/cuatro', { cuatro }).catch(() => {});
   }
   function elegirFavorito(pos) {
     const ids = Array.from(ultimas().keys()).map(lugarPorId).filter(Boolean);
@@ -1649,6 +1662,7 @@
       if (antes >= 0) cuatro[antes] = cuatro[pos];
       cuatro[pos] = id;
       guardarLocal(CLAVE_CUATRO, cuatro);
+      guardarCuatroServidor();
       pintarPerfil();
     }, quitar);
   }
@@ -1812,7 +1826,7 @@
   }
   function htmlEvento(e) {
     const l = lugarPorId(e.idLugar);
-    const quien = e.propio ? 'Tú' : escapar(e.nombre);
+    const quien = e.propio ? 'Tú' : '<button type="button" class="sitio" data-accion="abrir-amigo" data-id="' + escapar(e.idPerfil) + '">' + escapar(e.nombre) + '</button>';
     const sitio = '<button type="button" class="sitio" data-accion="abrir-lugar" data-id="' + escapar(l.id) + '">' + escapar(l.nombre) + '</button>';
     if (e.tipo === 'por_probar') {
       return '<li class="evento"><span class="inicial" aria-hidden="true">' + escapar(e.nombre.charAt(0).toUpperCase()) + '</span><div><p><strong>' + quien + '</strong> agregó ' + sitio + ' a Por probar</p>' +
@@ -1840,14 +1854,35 @@
     if (!r || !r.ok) { e.mio = quitar; e.provocas = Math.max(0, e.provocas + (quitar ? 1 : -1)); pintarActividad(); avisar((r && r.mensaje) || 'No pudimos guardarlo.', 'error'); }
     else { e.provocas = r.provocas; pintarActividad(); }
   }
-  function abrirAmigo(id) {
+  async function abrirAmigo(id) {
     const a = ((yoDatos && yoDatos.amigos) || []).find((x) => x.id === id);
-    if (!a) return;
-    const ids = Object.keys(a.probados || {}).filter(lugarPorId).sort((x, y) => (a.probados[y].fecha || 0) - (a.probados[x].fecha || 0));
-    abrirElegir(a.nombre, [], null,
-      '<p class="sub" style="margin:-4px 0 12px">' + (ids.length ? ids.length + (ids.length === 1 ? ' buñuelo probado' : ' buñuelos probados') : 'Aún no ha anotado buñuelos') + '</p>' +
-      (ids.length ? '<ul class="filas">' + ids.map((lid) => { const l = lugarPorId(lid); return filaSitio(l, calHtml(a.probados[lid].cal, 14) + ' ' + formatoCal(a.probados[lid].cal)); }).join('') + '</ul>' : '') +
-      '<div style="text-align:center;margin-top:14px"><button type="button" class="enlace peligro" data-accion="quitar-amigo" data-id="' + escapar(a.id) + '">Dejar de ser amigos</button></div>');
+    const nombre = a ? a.nombre : 'Tu amigo';
+    abrirElegir(nombre, [], null, '<p class="vacio">Cargando su perfil…</p>');
+    const r = await pedir('/api/perfil-amigo?id=' + encodeURIComponent(id)).catch(() => null);
+    if (!r || !r.ok) { $('e-contenido').innerHTML = '<p class="vacio">' + escapar((r && r.mensaje) || 'No pudimos cargar su perfil. Revisa tu conexión.') + '</p>'; return; }
+    const p = r.perfil;
+    const lugaresProbados = new Set(r.entradas.map((e) => e.idLugar));
+    const rch = racha(r.entradas);
+    const c4 = Array.isArray(p.cuatro) ? p.cuatro : [null, null, null, null];
+    let h = '<div class="fila" style="margin:-2px 0 4px"><span class="avatar grande" aria-hidden="true">' + escapar(p.nombre.charAt(0).toUpperCase()) + '</span>' +
+      '<p class="sub" style="margin:0">' + p.amigos + (p.amigos === 1 ? ' amigo' : ' amigos') + ' en Apetitosos</p></div>';
+    h += '<div class="stats"><div><b>' + lugaresProbados.size + '</b><span>' + (lugaresProbados.size === 1 ? 'probado' : 'probados') + '</span></div>' +
+      '<div><b>' + rch + '</b><span>' + (rch === 1 ? 'semana de racha' : 'semanas de racha') + '</span></div>' +
+      '<div><b>' + r.porProbar.length + '</b><span>por probar</span></div></div>';
+    if (c4.some((x) => x && lugarPorId(x))) {
+      h += '<h3 style="margin:18px 0 0;font-size:1.05rem">Sus cuatro</h3><div class="cuatro">' + c4.map((lid) => {
+        const l = lid && lugarPorId(lid);
+        return l ? '<button type="button" data-accion="abrir-lugar" data-id="' + escapar(l.id) + '">' + bun() + '<span>' + escapar(l.nombre) + '</span></button>'
+                 : '<button type="button" class="libre" disabled aria-label="Espacio libre"></button>';
+      }).join('') + '</div>';
+    }
+    h += '<h3 style="margin:18px 0 0;font-size:1.05rem">Su diario</h3>' + htmlDiario(r.entradas);
+    const pp = r.porProbar.map((x) => lugarPorId(x.idLugar)).filter(Boolean);
+    if (pp.length) h += '<h3 style="margin:18px 0 8px;font-size:1.05rem">Quiere probar</h3><ul class="filas">' +
+      pp.map((l) => filaSitio(l, escapar(l.barrio || 'Bogotá') + ' · ' + escapar(formatoPrecio(l.precio)))).join('') + '</ul>';
+    h += '<div style="text-align:center;margin-top:18px"><button type="button" class="enlace peligro" data-accion="quitar-amigo" data-id="' + escapar(p.id) + '">Dejar de ser amigos</button></div>';
+    $('e-titulo').textContent = p.nombre;
+    $('e-contenido').innerHTML = h;
   }
   function invitar() {
     abrirElegir('Invita a un amigo', [], null,
@@ -1974,7 +2009,7 @@
     let pila = '';
     for (let i = 0; i < Math.min(d.visitas, 24); i++) pila += '<svg viewBox="0 0 100 100" style="animation-delay:' + (0.6 + i * 0.09).toFixed(2) + 's" aria-hidden="true"><use href="#bunuelo"/></svg>';
     e.push({ color: 'rojo', html: '<p class="w-pre">Tu temporada en buñuelos</p><p class="w-grande">' + d.n + '</p><p class="w-medio">' + sitios + ' en Bogotá.</p>' +
-      (d.visitas > d.n ? '<p class="w-texto">Y ' + d.visitas + ' comandas en total. Hubo repetición.</p>' : '') + '<div class="w-pila">' + pila + '</div>' });
+      (d.visitas > d.n ? '<p class="w-texto">Y ' + d.visitas + ' anotaciones en total. Hubo repetición.</p>' : '') + '<div class="w-pila">' + pila + '</div>' });
     if (d.barrios.length === 1) e.push({ color: 'dorado', html: '<p class="w-pre">Tu zona</p><p class="w-medio">' + escapar(d.barrios[0]) + '</p><p class="w-texto">Todos tus buñuelos fueron por el mismo lado. Fidelidad absoluta al barrio.</p>' });
     else if (d.barrios.length > 1) e.push({ color: 'dorado', html: '<p class="w-pre">Recorriste</p><p class="w-grande">' + d.barrios.length + '</p><p class="w-medio">barrios buscando el mejor.</p><div class="w-chips">' + d.barrios.slice(0, 10).map((b) => '<span>' + escapar(b) + '</span>').join('') + '</div>' });
     if (d.n >= 2 && d.km >= 0.2) e.push({ color: 'musgo', html: '<p class="w-pre">Entre buñuelo y buñuelo hiciste</p><p class="w-grande">' + fmtKm(d.km) + '</p><p class="w-medio">kilómetros.</p><p class="w-texto">Más o menos ' + Math.round(d.km * 10) + ' cuadras. Cada buñuelo te lo ganaste.</p>' });
@@ -2084,7 +2119,7 @@
       case 'borrar-entrada': borrarEntrada(); break;
       case 'editar-entrada': { const e = entradas.find((x) => x.id === id); if (e && !modoDemo) abrirAnotar(null, e); break; }
       case 'favorito': elegirFavorito(Number(b.dataset.pos)); break;
-      case 'quitar-favorito': cuatro[Number(b.dataset.pos)] = null; guardarLocal(CLAVE_CUATRO, cuatro); cerrarElegir(); pintarPerfil(); break;
+      case 'quitar-favorito': cuatro[Number(b.dataset.pos)] = null; guardarLocal(CLAVE_CUATRO, cuatro); guardarCuatroServidor(); cerrarElegir(); pintarPerfil(); break;
       case 'cuenta': abrirCuenta(); break;
       case 'resumen': abrirWrapped(); break;
       case 'entrar-google': entrarConGoogle(); break;

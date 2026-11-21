@@ -49,6 +49,8 @@ export default {
         case 'POST /api/entrar': return json(await entrar(request, env));
         case 'POST /api/salir': return json(await salirCuenta(request, env));
         case 'POST /api/cuenta': return json(await actualizarCuenta(request, env));
+        case 'POST /api/cuatro': return json(await guardarCuatro(request, env));
+        case 'GET /api/perfil-amigo': return json(await perfilAmigo(request, env, url));
         case 'GET /api/invitacion': return json(await verInvitacion(env, url.searchParams.get('codigo')));
         case 'POST /api/perfil': return json(await guardarPerfil(request, env));
         case 'POST /api/amigos': return json(await agregarAmigo(request, env));
@@ -146,9 +148,16 @@ async function votar(request, env) {
   const lugar = await lugarPorId(env, idLugar);
   if (!lugar) return { ok: false, mensaje: 'Ese sitio ya no está en el mapa.' };
 
+  // Con cuenta: un voto por persona y por sitio, sin importar desde cuántos teléfonos entre.
+  const { ids, perfil } = await dispositivosDe(request, env, idDispositivo);
+  const yaVoto = perfil
+    ? await env.DB.prepare('SELECT 1 FROM votos WHERE id_lugar = ? AND (id_perfil = ? OR id_dispositivo IN (' + marcas(ids.length) + ')) LIMIT 1').bind(idLugar, perfil.id, ...ids).first()
+    : null;
+  if (yaVoto) return { ok: false, yaVoto: true, lugar, mensaje: 'Ya votaste por este sitio.' };
+
   const r = await env.DB.prepare(
-    'INSERT OR IGNORE INTO votos (id_lugar, plato, fecha, id_dispositivo, ip_hash) VALUES (?, ?, ?, ?, ?)'
-  ).bind(idLugar, PLATO, ahora(), idDispositivo, control.ipHash).run();
+    'INSERT OR IGNORE INTO votos (id_lugar, plato, fecha, id_dispositivo, ip_hash, id_perfil) VALUES (?, ?, ?, ?, ?, ?)'
+  ).bind(idLugar, PLATO, ahora(), idDispositivo, control.ipHash, perfil ? perfil.id : null).run();
 
   if (!r.meta.changes) return { ok: false, yaVoto: true, lugar, mensaje: 'Ya votaste por este sitio desde este teléfono.' };
 
@@ -238,7 +247,7 @@ function aEntrada(f) {
 }
 
 async function diario(request, env, url) {
-  const { ids } = await dispositivosDe(request, env, url.searchParams.get('d'));
+  const { ids, perfil } = await dispositivosDe(request, env, url.searchParams.get('d'));
   if (!ids.length) return { ok: false, mensaje: 'No pudimos identificar tu dispositivo. Recarga la página.' };
   const q = marcas(ids.length);
   const [e, p, s] = await env.DB.batch([
@@ -246,8 +255,12 @@ async function diario(request, env, url) {
     env.DB.prepare('SELECT id_lugar, MAX(fecha) AS fecha FROM por_probar WHERE id_dispositivo IN (' + q + ') GROUP BY id_lugar ORDER BY fecha DESC').bind(...ids),
     env.DB.prepare('SELECT DISTINCT id_lista FROM seguimientos WHERE id_dispositivo IN (' + q + ')').bind(...ids)
   ]);
+  const v = await env.DB.prepare('SELECT DISTINCT id_lugar FROM votos WHERE id_dispositivo IN (' + q + ')' + (perfil ? ' OR id_perfil = ?' : ''))
+    .bind(...ids, ...(perfil ? [perfil.id] : [])).all();
   return {
     ok: true,
+    votados: v.results.map((f) => f.id_lugar),
+    cuatro: perfil ? leerCuatro(perfil.cuatro) : null,
     entradas: e.results.map(aEntrada),
     porProbar: p.results.map((f) => ({ idLugar: f.id_lugar, fecha: Date.parse(f.fecha) || 0 })),
     seguidas: s.results.map((f) => f.id_lista)
@@ -513,6 +526,44 @@ async function actualizarCuenta(request, env) {
   return { ok: true, perfil: await perfilDe(env, usuario.id) };
 }
 
+// ====================== PERFIL DE UN AMIGO Y "MIS CUATRO" ======================
+
+async function guardarCuatro(request, env) {
+  const usuario = await usuarioDe(request, env);
+  if (!usuario) return { ok: false, sesion: true };
+  const cuerpo = await leerCuerpo(request);
+  const cuatro = leerCuatro(JSON.stringify(cuerpo.cuatro));
+  if (!cuatro) return { ok: false, mensaje: 'No pudimos guardar tus cuatro.' };
+  await env.DB.prepare('UPDATE perfiles SET cuatro = ? WHERE id = ?').bind(JSON.stringify(cuatro), usuario.id).run();
+  return { ok: true };
+}
+
+/** Solo entre amigos: su diario, su Por probar, sus cuatro y cuántos amigos tiene. */
+async function perfilAmigo(request, env, url) {
+  const usuario = await usuarioDe(request, env);
+  if (!usuario) return { ok: false, sesion: true, mensaje: 'Entra a tu cuenta para ver perfiles.' };
+  const idAmigo = limpiarTexto(url.searchParams.get('id'), 80);
+  const amistad = await env.DB.prepare('SELECT 1 FROM amistades WHERE a = ? AND b = ?').bind(usuario.id, idAmigo).first();
+  if (!amistad) return { ok: false, mensaje: 'Solo puedes ver el perfil de tus amigos.' };
+  const amigo = await env.DB.prepare('SELECT * FROM perfiles WHERE id = ?').bind(idAmigo).first();
+  if (!amigo) return { ok: false, mensaje: 'Ese perfil ya no existe.' };
+  const [e, p, n] = await env.DB.batch([
+    env.DB.prepare(
+      'SELECT e.*, (SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas, ' +
+      '(SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id AND v.id_perfil = ?) AS mio ' +
+      'FROM entradas e JOIN perfil_dispositivos pd ON pd.id_dispositivo = e.id_dispositivo WHERE pd.id_perfil = ? ORDER BY e.fecha DESC, e.creado DESC LIMIT 500'
+    ).bind(usuario.id, idAmigo),
+    env.DB.prepare('SELECT pp.id_lugar, MAX(pp.fecha) AS fecha FROM por_probar pp JOIN perfil_dispositivos pd ON pd.id_dispositivo = pp.id_dispositivo WHERE pd.id_perfil = ? GROUP BY pp.id_lugar ORDER BY fecha DESC').bind(idAmigo),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(idAmigo)
+  ]);
+  return {
+    ok: true,
+    perfil: { id: amigo.id, nombre: amigo.nombre, cuatro: leerCuatro(amigo.cuatro), amigos: n.results[0].n },
+    entradas: e.results.map((f) => Object.assign(aEntrada(f), { mio: !!f.mio })),
+    porProbar: p.results.map((f) => ({ idLugar: f.id_lugar, fecha: Date.parse(f.fecha) || 0 }))
+  };
+}
+
 // ====================== CORREO DEL RESUMEN (31 de diciembre) ======================
 // Se activa solo si están RESEND_API_KEY (secreto), CORREO_DESDE y URL_APP.
 // El cron corre cada hora del 31 de diciembre y manda hasta 40 correos por vuelta
@@ -581,7 +632,8 @@ async function usuarioDe(request, env) {
   return usuario;
 }
 
-function aPerfil(f) { return f ? { id: f.id, nombre: f.nombre, color: f.color, codigo: f.codigo } : null; }
+function aPerfil(f) { return f ? { id: f.id, nombre: f.nombre, color: f.color, codigo: f.codigo, cuatro: f.cuatro || null } : null; }
+function leerCuatro(t) { try { const a = JSON.parse(t || 'null'); return Array.isArray(a) && a.length === 4 ? a.map((x) => (typeof x === 'string' ? x.slice(0, 40) : null)) : null; } catch (e) { return null; } }
 
 async function perfilDe(env, idUsuario) {
   return aPerfil(await env.DB.prepare('SELECT * FROM perfiles WHERE id = ?').bind(idUsuario).first());
