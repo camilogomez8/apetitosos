@@ -1,6 +1,6 @@
 {
   // Configuración de la app en Cloudflare Workers.
-  "name": "buena-muela",
+  "name": "apetitosos",
   "main": "src/index.js",
   "compatibility_date": "2026-10-01",
   "assets": {
