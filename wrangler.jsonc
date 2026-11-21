@@ -1,0 +1,34 @@
+{
+  // Configuración de la app en Cloudflare Workers.
+  "name": "buena-muela",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "buena-muela",
+      "database_id": "1eb87b28-d43f-479e-9c4a-728439f0ca22"
+    }
+  ],
+  "vars": {
+    // Todas estas son públicas: igual terminan en el navegador de cada visitante.
+    "MAPTILER_KEY": "Y9BEgwaP6mBwXuqudyUa",
+    "TURNSTILE_SITE_KEY": "",
+    // Entrar con Google vía Supabase (opcional). Las cuentas con usuario y contraseña funcionan sin esto.
+    "SUPABASE_URL": "",
+    "SUPABASE_ANON_KEY": "",
+    // Correo del resumen el 31 de diciembre. Vacías = no se manda nada.
+    // URL_APP: la dirección de la app. CORREO_DESDE: por ejemplo "Apetitosos <hola@tudominio.co>".
+    // Falta además el secreto RESEND_API_KEY en el panel de Cloudflare.
+    "URL_APP": "",
+    "CORREO_DESDE": ""
+  },
+  // Cada hora del 31 de diciembre (hora UTC) revisa si hay correos del resumen por mandar.
+  "triggers": { "crons": ["0 * 31 12 *"] },
+  "observability": { "enabled": true }
+}
