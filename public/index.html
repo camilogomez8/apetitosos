@@ -156,7 +156,9 @@
   .boton-ubicacion.buscando svg { animation: latido 1s ease-in-out infinite; }
   @keyframes latido { 50% { transform: scale(1.2); } }
 
-  .marcador { position: relative; width: var(--s, 40px); height: var(--s, 40px); padding: 0; border: 0; background: none; transition: width .35s, height .35s, opacity .3s, filter .3s; }
+  /* Ojo: sin "position" aquí. El mapa ubica cada marcador con position: absolute y transform.
+     Si se cambia, los buñuelos se corren de sitio al acercar o alejar. */
+  .marcador { width: var(--s, 40px); height: var(--s, 40px); padding: 0; border: 0; background: none; transition: opacity .3s, filter .3s; }
   .marcador .cuerpo { display: block; width: 100%; height: 100%; transform-origin: 50% 85%; }
   .marcador svg { width: 100%; height: 100%; display: block; overflow: visible; pointer-events: none; }
   .marcador.activo .cuerpo { transform: scale(1.18); }
@@ -170,7 +172,7 @@
     0% { transform: scale(1, 1) translateY(0); } 15% { transform: scale(1.15, .85); } 40% { transform: scale(.92, 1.1) translateY(-38%); }
     62% { transform: scale(1.08, .92) translateY(0); } 78% { transform: scale(.98, 1.03) translateY(-8%); } 100% { transform: scale(1, 1) translateY(0); }
   }
-  .fantasma { width: 46px; height: 46px; cursor: grab; touch-action: none; position: relative; }
+  .fantasma { width: 46px; height: 46px; cursor: grab; touch-action: none; }
   .fantasma::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 3px dashed var(--chocolate); background: rgba(242, 194, 48, .35); animation: latido 1.4s ease-in-out infinite; }
   .chip-resaltado {
     position: absolute; z-index: 4; left: 50%; transform: translateX(-50%); top: calc(76px + var(--seguro-arriba));
@@ -400,6 +402,37 @@
   .carga p { margin: 0; font-weight: 700; font-size: 1.2rem; }
   .carga .detalle { font-weight: 400; font-size: .95rem; color: var(--gris); max-width: 340px; }
 
+  /* ---------- Computador: la app en una columna y el mapa ocupando el resto ---------- */
+  @media (min-width: 960px) {
+    .app { max-width: none; width: 460px; margin: 0; }
+    .vista { padding-left: 28px; padding-right: 28px; }
+    .nav { left: 230px; }
+    .mapa-caja, .mapa-caja.grande {
+      position: fixed; z-index: 1; left: 476px; right: 16px; top: 16px; bottom: 16px; height: auto; margin: 0; border-radius: 28px;
+      box-shadow: var(--sombra);
+    }
+    .mapa-caja .ver-grande { display: none; }
+    .mapa-caja .barra-mapa, .mapa-caja.grande .barra-mapa {
+      display: flex; position: absolute; z-index: 3; top: 16px; right: 16px; left: auto; pointer-events: none;
+    }
+    .mapa-caja .barra-mapa > * { pointer-events: auto; box-shadow: var(--sombra); }
+    .mapa-caja .barra-mapa [data-accion="mapa-cerrar"] { display: none; }
+    .mapa-caja .pista-mapa, .mapa-caja.grande .pista-mapa {
+      display: block; position: absolute; z-index: 3; left: 50%; transform: translateX(-50%); bottom: 22px;
+      width: max-content; max-width: calc(100% - 28px); padding: 12px 18px; border-radius: 22px;
+      background: var(--chocolate); color: var(--leche); font-weight: 500; font-size: .92rem; text-align: center; box-shadow: var(--sombra);
+    }
+    .mapa-caja .chip-resaltado, .mapa-caja:not(.grande) .chip-resaltado { top: 16px; left: 24px; transform: none; }
+    .mapa-caja .maplibregl-ctrl-bottom-left, .mapa-caja .maplibregl-ctrl-bottom-right { transform: none; bottom: 70px; }
+    .hoja { left: 16px; right: auto; bottom: 16px; width: 444px; max-width: none; margin: 0; max-height: calc(100vh - 32px); border-radius: 30px; }
+    .hoja.completa { top: 0; bottom: 0; left: 0; width: 460px; max-height: none; border-radius: 0; }
+    .bienvenida { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: center; }
+    .bienvenida .foto { max-width: none; width: 100%; height: 100vh; max-height: none; aspect-ratio: auto; object-position: 50% 35%; }
+    .bienvenida .texto { margin: 0 auto; padding: 40px; text-align: left; }
+    .bienvenida h1 { font-size: 2.6rem; }
+    .bienvenida p.bajada { margin-left: 0; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   }
@@ -515,7 +548,7 @@
 
 <nav class="nav" aria-label="Secciones">
   <button type="button" data-accion="ir" data-vista="inicio" aria-label="Inicio" aria-current="page"><svg aria-hidden="true"><use href="#i-inicio"/></svg></button>
-  <button type="button" data-accion="ir" data-vista="buscar" aria-label="Buscar"><svg aria-hidden="true"><use href="#i-buscar"/></svg></button>
+  <button type="button" data-accion="ir" data-vista="buscar" aria-label="Buscar" hidden><svg aria-hidden="true"><use href="#i-buscar"/></svg></button>
   <button type="button" class="anotar" data-accion="anotar" aria-label="Anotar un buñuelo"><svg aria-hidden="true"><use href="#i-mas"/></svg></button>
   <button type="button" data-accion="ir" data-vista="actividad" aria-label="Actividad de tus amigos"><svg aria-hidden="true"><use href="#i-actividad"/></svg><span class="punto" id="punto-actividad" hidden></span></button>
   <button type="button" data-accion="ir" data-vista="perfil" aria-label="Tu perfil"><svg aria-hidden="true"><use href="#i-perfil"/></svg></button>
@@ -1054,8 +1087,28 @@
     sincronizarMarcadores();
   }
 
+  const ESCRITORIO = window.matchMedia('(min-width: 960px)');
+  const huecoMapa = $('mapa-caja').nextElementSibling;   // para devolverlo a Inicio en el celular
+  /** En computador el mapa vive fijo a la derecha, siempre abierto y tocable. */
+  function acomodarMapa() {
+    const caja = $('mapa-caja');
+    if (ESCRITORIO.matches) {
+      if (caja.parentNode !== document.body) document.body.appendChild(caja);
+      caja.classList.remove('grande');
+      document.body.classList.remove('mapa-abierto');
+      mapaGrande = true;
+      if (mapa) { mapa.dragPan.enable(); mapa.scrollZoom.enable(); mapa.touchZoomRotate.enable(); mapa.doubleClickZoom.enable(); }
+    } else {
+      if (caja.parentNode !== huecoMapa.parentNode) huecoMapa.parentNode.insertBefore(caja, huecoMapa);
+      mapaGrande = false;
+      modoMapaPequeno();
+    }
+    if (mapa) setTimeout(() => mapa.resize(), 30);
+  }
+  if (ESCRITORIO.addEventListener) ESCRITORIO.addEventListener('change', acomodarMapa);
   function abrirMapaGrande() {
     if (!mapa) return;
+    if (ESCRITORIO.matches) { mapaGrande = true; return; }
     mapaGrande = true;
     $('mapa-caja').classList.add('grande');
     document.body.classList.add('mapa-abierto');
@@ -1063,6 +1116,7 @@
     setTimeout(() => mapa.resize(), 30);
   }
   function cerrarMapaGrande() {
+    if (ESCRITORIO.matches) { cerrarHojas(); return; }
     mapaGrande = false;
     cerrarHojas();
     $('mapa-caja').classList.remove('grande');
@@ -1071,7 +1125,7 @@
     setTimeout(() => mapa && mapa.resize(), 30);
   }
   function modoMapaPequeno() {
-    if (!mapa) return;
+    if (!mapa || ESCRITORIO.matches) return;
     mapa.dragPan.disable(); mapa.scrollZoom.disable(); mapa.touchZoomRotate.disable(); mapa.doubleClickZoom.disable();
   }
 
@@ -2100,6 +2154,7 @@
     document.addEventListener('visibilitychange', () => { if (!document.hidden) refrescar(); });
   }
   function iniciarMapa() {
+    acomodarMapa();
     if (!CONFIG.mapKey) { $('mapa-caja').innerHTML = '<p class="vacio" style="margin:0;height:100%;display:grid;place-items:center;text-align:center">Falta la clave de MapTiler (MAPTILER_KEY).</p>'; return; }
     if (!window.maptilersdk) { $('mapa-caja').innerHTML = '<p class="vacio" style="margin:0;height:100%;display:grid;place-items:center">No pudimos cargar el mapa.</p>'; return; }
     try {
@@ -2112,7 +2167,7 @@
       if (maptilersdk.Language && maptilersdk.Language.SPANISH) opciones.language = maptilersdk.Language.SPANISH;
       mapa = new maptilersdk.Map(opciones);
       if (mapa.touchZoomRotate) mapa.touchZoomRotate.disableRotation();
-      modoMapaPequeno();
+      acomodarMapa();
       mapa.on('error', (e) => {
         const estado = e && e.error && e.error.status;
         if (!mapaListo && (estado === 401 || estado === 403)) avisar('MapTiler rechazó la clave. Revisa "Allowed HTTP origins" en MapTiler.', 'error');
