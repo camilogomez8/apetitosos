@@ -995,6 +995,14 @@
     if (av) return '<span class="' + clase + ' con-cara" style="background:' + FONDOS[av.f] + '" aria-hidden="true"><img src="' + imgCara(av) + '" alt="" loading="lazy"></span>';
     return '<span class="' + clase + '" aria-hidden="true">' + escapar((nombre || '?').charAt(0).toUpperCase()) + '</span>';
   }
+  function verAmigos() {
+    const amigos = (yoDatos && yoDatos.amigos) || [];
+    abrirElegir('Tus amigos', amigos.map((a) => ({ id: a.id, texto: a.nombre,
+      html: '<li class="fila-sitio"><button type="button" class="abrir" data-accion="abrir-amigo" data-id="' + escapar(a.id) + '">' + circulo('inicial', a.avatar, a.nombre) +
+        '<span><strong>' + escapar(a.nombre) + '</strong><small>' + (function (n) { return n + (n === 1 ? ' probado' : ' probados'); })(Object.keys(a.probados || {}).length) + (a.avatar && a.avatar.frase ? ' · “' + escapar(a.avatar.frase) + '”' : '') + '</small></span></button></li>' })), null,
+      amigos.length ? '' : '<p class="vacio">Todavía no tienes amigos aquí. Invítalos desde Actividad.</p>' +
+      '<button type="button" class="principal" data-accion="invitar">Invitar a un amigo</button>');
+  }
   function abrirEditorAvatar() {
     const p = yoDatos && yoDatos.perfil;
     if (!p) return;
@@ -1671,7 +1679,7 @@
       : '<span class="avatar grande" aria-hidden="true"><img src="/img/oso-cabeza.webp" alt="" style="width:46px;height:46px;object-fit:contain"></span>';
     let h = '<header class="cabeza"><div class="fila">' + fotoPerfil +
       '<div><h1 style="margin:0;font-size:1.6rem;line-height:1.1">' + escapar(p ? p.nombre : 'Tu diario') + '</h1>' +
-      '<p class="sub">' + (p ? nAmigos + (nAmigos === 1 ? ' amigo' : ' amigos') + ' · ' : '') + 'sigues ' + seguidas.size + (seguidas.size === 1 ? ' lista' : ' listas') + '</p>' +
+      '<p class="sub">' + (p ? '<button type="button" class="enlace" style="padding:0;min-height:0;font:inherit;color:inherit" data-accion="ver-amigos">' + nAmigos + (nAmigos === 1 ? ' amigo' : ' amigos') + '</button> · ' : '') + 'sigues ' + seguidas.size + (seguidas.size === 1 ? ' lista' : ' listas') + '</p>' +
       (p && p.avatar && p.avatar.frase ? '<p class="frase">“' + escapar(p.avatar.frase) + '”</p>' : '') +
       (p && !p.avatar ? '<button type="button" class="enlace" style="padding:0;margin-top:4px" data-accion="editar-avatar">Elige tu personaje</button>' : '') + '</div></div>' +
       (p ? '<button type="button" class="enlace" data-accion="cuenta">Cuenta</button>'
@@ -2198,6 +2206,7 @@
       case 'quitar-favorito': cuatro[Number(b.dataset.pos)] = null; guardarLocal(CLAVE_CUATRO, cuatro); guardarCuatroServidor(); cerrarElegir(); pintarPerfil(); break;
       case 'cuenta': abrirCuenta(); break;
       case 'editar-avatar': abrirEditorAvatar(); break;
+      case 'ver-amigos': verAmigos(); break;
       case 'resumen': abrirWrapped(); break;
       case 'entrar-google': entrarConGoogle(); break;
       case 'modo-cuenta': modoCuenta = b.dataset.modo; pintarActividad(); break;
