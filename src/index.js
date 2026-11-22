@@ -557,18 +557,19 @@ async function perfilAmigo(request, env, url) {
   if (!amistad) return { ok: false, mensaje: 'Solo puedes ver el perfil de tus amigos.' };
   const amigo = await env.DB.prepare('SELECT * FROM perfiles WHERE id = ?').bind(idAmigo).first();
   if (!amigo) return { ok: false, mensaje: 'Ese perfil ya no existe.' };
-  const [e, p, n] = await env.DB.batch([
+  const [e, p, n, cu] = await env.DB.batch([
     env.DB.prepare(
       'SELECT e.*, (SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas, ' +
       '(SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id AND v.id_perfil = ?) AS mio ' +
       'FROM entradas e JOIN perfil_dispositivos pd ON pd.id_dispositivo = e.id_dispositivo WHERE pd.id_perfil = ? ORDER BY e.fecha DESC, e.creado DESC LIMIT 500'
     ).bind(usuario.id, idAmigo),
     env.DB.prepare('SELECT pp.id_lugar, MAX(pp.fecha) AS fecha FROM por_probar pp JOIN perfil_dispositivos pd ON pd.id_dispositivo = pp.id_dispositivo WHERE pd.id_perfil = ? GROUP BY pp.id_lugar ORDER BY fecha DESC').bind(idAmigo),
-    env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(idAmigo)
+    env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(idAmigo),
+    env.DB.prepare('SELECT usuario FROM cuentas WHERE id_perfil = ?').bind(idAmigo)
   ]);
   return {
     ok: true,
-    perfil: { id: amigo.id, nombre: amigo.nombre, avatar: leerAvatar(amigo.avatar), cuatro: leerCuatro(amigo.cuatro), amigos: n.results[0].n },
+    perfil: { id: amigo.id, nombre: amigo.nombre, usuario: cu.results[0] ? cu.results[0].usuario : null, avatar: leerAvatar(amigo.avatar), cuatro: leerCuatro(amigo.cuatro), amigos: n.results[0].n },
     entradas: e.results.map((f) => Object.assign(aEntrada(f), { mio: !!f.mio })),
     porProbar: p.results.map((f) => ({ idLugar: f.id_lugar, fecha: Date.parse(f.fecha) || 0 }))
   };
@@ -686,14 +687,14 @@ function agruparProbados(filas) {
 
 async function amigosDe(env, idPerfil) {
   const [lista, prob] = await env.DB.batch([
-    env.DB.prepare('SELECT p.id, p.nombre, p.color, p.avatar, a.fecha FROM amistades a JOIN perfiles p ON p.id = a.b WHERE a.a = ? ORDER BY p.nombre').bind(idPerfil),
+    env.DB.prepare('SELECT p.id, p.nombre, p.color, p.avatar, c.usuario, a.fecha FROM amistades a JOIN perfiles p ON p.id = a.b LEFT JOIN cuentas c ON c.id_perfil = p.id WHERE a.a = ? ORDER BY p.nombre').bind(idPerfil),
     env.DB.prepare(
       'SELECT pd.id_perfil, e.id_lugar, e.cal AS calificacion, e.creado AS fecha FROM amistades a ' +
       'JOIN perfil_dispositivos pd ON pd.id_perfil = a.b JOIN entradas e ON e.id_dispositivo = pd.id_dispositivo WHERE a.a = ?'
     ).bind(idPerfil)
   ]);
   const porPerfil = agruparProbados(prob.results);
-  return lista.results.map((f) => ({ id: f.id, nombre: f.nombre, color: f.color, avatar: leerAvatar(f.avatar), desde: Date.parse(f.fecha) || 0, probados: porPerfil[f.id] || {} }));
+  return lista.results.map((f) => ({ id: f.id, nombre: f.nombre, usuario: f.usuario || null, color: f.color, avatar: leerAvatar(f.avatar), desde: Date.parse(f.fecha) || 0, probados: porPerfil[f.id] || {} }));
 }
 
 async function yo(request, env, url) {

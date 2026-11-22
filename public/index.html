@@ -999,7 +999,7 @@
     const amigos = (yoDatos && yoDatos.amigos) || [];
     abrirElegir('Tus amigos', amigos.map((a) => ({ id: a.id, texto: a.nombre,
       html: '<li class="fila-sitio"><button type="button" class="abrir" data-accion="abrir-amigo" data-id="' + escapar(a.id) + '">' + circulo('inicial', a.avatar, a.nombre) +
-        '<span><strong>' + escapar(a.nombre) + '</strong><small>' + (function (n) { return n + (n === 1 ? ' probado' : ' probados'); })(Object.keys(a.probados || {}).length) + (a.avatar && a.avatar.frase ? ' · “' + escapar(a.avatar.frase) + '”' : '') + '</small></span></button></li>' })), null,
+        '<span><strong>' + escapar(a.nombre) + (a.usuario ? ' <span style="font-weight:500;color:var(--gris)">@' + escapar(a.usuario) + '</span>' : '') + '</strong><small>' + (function (n) { return n + (n === 1 ? ' probado' : ' probados'); })(Object.keys(a.probados || {}).length) + (a.avatar && a.avatar.frase ? ' · “' + escapar(a.avatar.frase) + '”' : '') + '</small></span></button></li>' })), null,
       amigos.length ? '' : '<p class="vacio">Todavía no tienes amigos aquí. Invítalos desde Actividad.</p>' +
       '<button type="button" class="principal" data-accion="invitar">Invitar a un amigo</button>');
   }
@@ -1948,7 +1948,7 @@
     const rch = racha(r.entradas);
     const c4 = Array.isArray(p.cuatro) ? p.cuatro : [null, null, null, null];
     let h = '<div class="fila" style="margin:-2px 0 4px">' + circulo('avatar grande', p.avatar, p.nombre) +
-      '<div><p class="sub" style="margin:0">' + p.amigos + (p.amigos === 1 ? ' amigo' : ' amigos') + ' en Apetitosos</p>' +
+      '<div>' + (p.usuario ? '<p style="margin:0;font-weight:700">@' + escapar(p.usuario) + '</p>' : '') + '<p class="sub" style="margin:0">' + p.amigos + (p.amigos === 1 ? ' amigo' : ' amigos') + ' en Apetitosos</p>' +
       (p.avatar && p.avatar.frase ? '<p class="frase">“' + escapar(p.avatar.frase) + '”</p>' : '') + '</div></div>';
     h += '<div class="stats"><div><b>' + lugaresProbados.size + '</b><span>' + (lugaresProbados.size === 1 ? 'probado' : 'probados') + '</span></div>' +
       '<div><b>' + rch + '</b><span>' + (rch === 1 ? 'semana de racha' : 'semanas de racha') + '</span></div>' +
