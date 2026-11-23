@@ -55,6 +55,9 @@ export default {
         case 'GET /api/invitacion': return json(await verInvitacion(env, url.searchParams.get('codigo')));
         case 'POST /api/perfil': return json(await guardarPerfil(request, env));
         case 'POST /api/amigos': return json(await agregarAmigo(request, env));
+        case 'GET /api/buscar-amigo': return json(await buscarAmigo(request, env, url));
+        case 'POST /api/solicitud': return json(await mandarSolicitud(request, env));
+        case 'POST /api/solicitud/responder': return json(await responderSolicitud(request, env));
         case 'POST /api/amigos/quitar': return json(await quitarAmigo(request, env));
         default: return json({ ok: false, mensaje: 'Ruta desconocida.' }, 404);
       }
@@ -703,12 +706,13 @@ async function yo(request, env, url) {
   const perfil = await perfilDe(env, usuario.id);
   if (!perfil) return { ok: true, activo: true, conectado: true, perfil: null, nombreSugerido: usuario.nombreGoogle };
   await unirDispositivo(env, perfil.id, url.searchParams.get('d'));
-  const [amigos, cuenta] = await Promise.all([
+  const [amigos, cuenta, solicitudes] = await Promise.all([
     amigosDe(env, perfil.id),
-    env.DB.prepare('SELECT usuario, correo, avisar FROM cuentas WHERE id_perfil = ?').bind(perfil.id).first()
+    env.DB.prepare('SELECT usuario, correo, avisar FROM cuentas WHERE id_perfil = ?').bind(perfil.id).first(),
+    solicitudesDe(env, perfil.id)
   ]);
   return {
-    ok: true, activo: true, conectado: true, perfil, amigos,
+    ok: true, activo: true, conectado: true, perfil, amigos, solicitudes,
     cuenta: cuenta ? { usuario: cuenta.usuario, correo: cuenta.correo || '', avisar: !!cuenta.avisar } : null
   };
 }
@@ -765,9 +769,90 @@ async function agregarAmigo(request, env) {
   const fecha = ahora();
   const [r] = await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(perfil.id, otro.id, fecha),
-    env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(otro.id, perfil.id, fecha)
+    env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(otro.id, perfil.id, fecha),
+    env.DB.prepare('DELETE FROM solicitudes WHERE (de = ? AND para = ?) OR (de = ? AND para = ?)').bind(perfil.id, otro.id, otro.id, perfil.id)
   ]);
   return { ok: true, nuevo: !!r.meta.changes, amigo: { id: otro.id, nombre: otro.nombre } };
+}
+
+// ---------- Solicitudes de amistad por @usuario ----------
+// Buscar el @ no basta para ser amigos: la otra persona tiene que aceptar, porque los amigos ven tu diario.
+
+async function solicitudesDe(env, idPerfil) {
+  const [rec, env2] = await env.DB.batch([
+    env.DB.prepare('SELECT p.id, p.nombre, p.avatar, c.usuario, s.fecha FROM solicitudes s JOIN perfiles p ON p.id = s.de LEFT JOIN cuentas c ON c.id_perfil = p.id WHERE s.para = ? ORDER BY s.fecha DESC LIMIT 50').bind(idPerfil),
+    env.DB.prepare('SELECT para FROM solicitudes WHERE de = ? LIMIT 200').bind(idPerfil)
+  ]);
+  return {
+    recibidas: rec.results.map((f) => ({ id: f.id, nombre: f.nombre, usuario: f.usuario || null, avatar: leerAvatar(f.avatar), fecha: f.fecha })),
+    enviadas: env2.results.map((f) => f.para)
+  };
+}
+
+async function buscarAmigo(request, env, url) {
+  const usuario = await usuarioDe(request, env);
+  if (!usuario) return { ok: false, sesion: true, mensaje: 'Entra a tu cuenta para buscar amigos.' };
+  const q = limpiarUsuario(url.searchParams.get('u')).replace(/[^a-z0-9._]/g, '').slice(0, 20);
+  if (q.length < 3) return { ok: true, resultados: [] };
+  const filas = await env.DB.prepare(
+    'SELECT p.id, p.nombre, p.avatar, c.usuario, ' +
+    '(SELECT 1 FROM amistades WHERE a = ?1 AND b = p.id) AS amigo, ' +
+    '(SELECT 1 FROM solicitudes WHERE de = ?1 AND para = p.id) AS enviada, ' +
+    '(SELECT 1 FROM solicitudes WHERE de = p.id AND para = ?1) AS recibida ' +
+    'FROM cuentas c JOIN perfiles p ON p.id = c.id_perfil WHERE c.usuario >= ?2 AND c.usuario < ?3 ORDER BY (c.usuario = ?2) DESC, c.usuario LIMIT 6'
+  ).bind(usuario.id, q, q + '\uffff').all();
+  return { ok: true, resultados: filas.results.map((f) => ({
+    id: f.id, nombre: f.nombre, usuario: f.usuario, avatar: leerAvatar(f.avatar),
+    estado: f.id === usuario.id ? 'tu' : f.amigo ? 'amigo' : f.recibida ? 'recibida' : f.enviada ? 'enviada' : 'nuevo'
+  })) };
+}
+
+async function hacerAmigos(env, x, y) {
+  const fecha = ahora();
+  await env.DB.batch([
+    env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(x, y, fecha),
+    env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(y, x, fecha),
+    env.DB.prepare('DELETE FROM solicitudes WHERE (de = ? AND para = ?) OR (de = ? AND para = ?)').bind(x, y, y, x)
+  ]);
+}
+
+async function mandarSolicitud(request, env) {
+  const usuario = await usuarioDe(request, env);
+  if (!usuario) return { ok: false, sesion: true, mensaje: 'Entra a tu cuenta para agregar amigos.' };
+  const perfil = await perfilDe(env, usuario.id);
+  if (!perfil) return { ok: false, sinPerfil: true, mensaje: 'Primero elige tu nombre.' };
+  const id = limpiarTexto((await leerCuerpo(request)).id, 80);
+  const otro = id && id !== perfil.id && await perfilDe(env, id);
+  if (!otro) return { ok: false, mensaje: 'No encontramos a esa persona.' };
+  if (await env.DB.prepare('SELECT 1 FROM amistades WHERE a = ? AND b = ?').bind(perfil.id, otro.id).first()) return { ok: true, estado: 'amigo' };
+  const control = await controlar(request, env, null, false, true);
+  if (!control.ok) return control;
+  const cuantos = await env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(perfil.id).first();
+  if (cuantos && cuantos.n >= MAX_AMIGOS) return { ok: false, mensaje: 'Ya tienes muchísimos amigos en la app.' };
+  // Si la otra persona ya te había mandado solicitud, quedan amigos de una.
+  if (await env.DB.prepare('SELECT 1 FROM solicitudes WHERE de = ? AND para = ?').bind(otro.id, perfil.id).first()) {
+    await hacerAmigos(env, perfil.id, otro.id);
+    return { ok: true, estado: 'amigo', amigo: { id: otro.id, nombre: otro.nombre } };
+  }
+  const pendientes = await env.DB.prepare('SELECT COUNT(*) AS n FROM solicitudes WHERE de = ?').bind(perfil.id).first();
+  if (pendientes && pendientes.n >= 50) return { ok: false, mensaje: 'Tienes muchas solicitudes sin responder. Espera a que te acepten.' };
+  await env.DB.prepare('INSERT OR IGNORE INTO solicitudes (de, para, fecha) VALUES (?, ?, ?)').bind(perfil.id, otro.id, ahora()).run();
+  return { ok: true, estado: 'enviada' };
+}
+
+async function responderSolicitud(request, env) {
+  const usuario = await usuarioDe(request, env);
+  if (!usuario) return { ok: false, sesion: true, mensaje: 'Tu sesión se cerró. Entra otra vez.' };
+  const cuerpo = await leerCuerpo(request);
+  const id = limpiarTexto(cuerpo.id, 80);
+  const existe = id && await env.DB.prepare('SELECT 1 FROM solicitudes WHERE de = ? AND para = ?').bind(id, usuario.id).first();
+  if (!existe) return { ok: false, mensaje: 'Esa solicitud ya no está.' };
+  if (cuerpo.aceptar) {
+    await hacerAmigos(env, usuario.id, id);
+    return { ok: true, estado: 'amigo' };
+  }
+  await env.DB.prepare('DELETE FROM solicitudes WHERE de = ? AND para = ?').bind(id, usuario.id).run();
+  return { ok: true, estado: 'rechazada' };
 }
 
 async function quitarAmigo(request, env) {

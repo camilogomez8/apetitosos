@@ -307,6 +307,28 @@
   .amigos-fila .inicial { width: 54px; height: 54px; font-size: 1.3rem; }
   .amigos-fila .invitar .inicial { background: transparent; border: 2px dashed var(--gris); }
 
+  /* ---------- Buscadores ---------- */
+  .campo.buscador { position: relative; display: block; }
+  .campo.buscador svg { position: absolute; left: 16px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); color: var(--gris); pointer-events: none; }
+  .campo.buscador input { padding-left: 46px; }
+  .llegar.con-color { background: var(--mostaza); border: 0; }
+  button.llegar { border: 0; cursor: pointer; font-family: inherit; }
+  .fila-sitio > button.abrir .inicial { flex: 0 0 auto; }
+  .aviso-solicitudes { display: block; width: 100%; margin-top: 8px; padding: 12px 14px; border: 0; border-radius: 18px; background: var(--mostaza); color: var(--chocolate); font: inherit; font-weight: 600; text-align: left; }
+  .amigos-fila .invitar .inicial { font-size: 1.4rem; }
+
+  /* ---------- Probados ---------- */
+  .pastillas.pestanas { gap: 6px; }
+  .pastillas.pestanas .pastilla { flex: 1 1 0; justify-content: center; padding: 0 8px; font-size: .9rem; min-width: 0; }
+  .probados { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .probados button { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 128px; padding: 10px 6px; border: 0; border-radius: 20px; background: var(--leche); color: var(--chocolate); font: inherit; text-align: center; }
+  .probados button svg.bun { width: 46px; height: 46px; }
+  .probados strong { font-size: .8rem; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .probados small { font-size: .72rem; color: var(--gris); }
+  .orden { display: flex; gap: 4px; }
+  .orden button { border: 0; background: none; padding: 4px 6px; font: inherit; font-size: .78rem; color: var(--gris); border-radius: 10px; }
+  .orden button[aria-pressed="true"] { background: var(--tostada); color: var(--chocolate); font-weight: 700; }
+
   /* ---------- Avatares ---------- */
   .con-cara { overflow: hidden; padding: 0; border: 2px solid var(--chocolate); }
   .avatar.con-cara { border-width: 3px; }
@@ -514,11 +536,11 @@
     </header>
     <div class="banner-temporada"><img src="/img/temporada.webp" alt="Noche de diciembre en Bogotá: el oso con gorro navideño fríe buñuelos en una calle con luces"><span class="temporada">TEMPORADA BUÑUELO · DIC</span></div>
     <h1 class="titulo" style="font-size:1.65rem">¿Dónde está el mejor buñuelo de Bogotá?</h1>
-    <div class="pastillas" style="margin-top:16px" role="group" aria-label="Plato">
-      <button type="button" class="pastilla on" aria-pressed="true"><span class="bolita"><svg aria-hidden="true"><use href="#bunuelo"/></svg></span>Buñuelo</button>
-      <button type="button" class="pastilla" disabled>Natilla · enero</button>
-      <button type="button" class="pastilla" disabled>Tamal · pronto</button>
-    </div>
+    <label class="campo buscador" style="margin-top:16px"><span class="oculto-visual">Buscar un sitio</span>
+      <svg aria-hidden="true"><use href="#i-buscar"/></svg>
+      <input id="buscar-texto" type="search" placeholder="Busca un sitio o un barrio" autocomplete="off" enterkeyhint="search">
+    </label>
+    <ul class="filas" id="buscar-resultados" style="margin-top:10px"></ul>
 
     <div class="mapa-caja" id="mapa-caja">
       <div id="mapa" aria-label="Mapa de Bogotá con los buñuelos marcados"></div>
@@ -542,22 +564,16 @@
     <section id="inicio-contenido" style="margin-top:16px" aria-live="polite"></section>
   </main>
 
-  <!-- ================= BUSCAR ================= -->
-  <main id="v-buscar" class="vista" data-vista="buscar" hidden>
-    <h1 class="titulo" style="margin-top:6px">Buscar</h1>
-    <label class="campo" style="margin-top:14px"><span class="oculto-visual">Buscar un sitio</span>
-      <input id="buscar-texto" type="search" placeholder="Busca un sitio o un barrio" autocomplete="off">
-    </label>
-    <ul class="filas" id="buscar-resultados"></ul>
-    <div id="buscar-explorar">
-      <div class="fila entre" style="margin:8px 0 10px"><h2 class="seccion">Explorar por</h2><span class="temporada">LLEGA EN ENERO</span></div>
-      <p class="sub" style="margin-bottom:12px">Cuando llegue el segundo plato vas a poder explorar por barrio, precio, plato, gente y listas de medios.</p>
-    </div>
-  </main>
-
   <!-- ================= ACTIVIDAD ================= -->
   <main id="v-actividad" class="vista" data-vista="actividad" hidden>
     <h1 class="titulo" style="margin-top:6px">Actividad</h1>
+    <div id="buscar-amigo" hidden>
+      <label class="campo buscador" style="margin-top:14px"><span class="oculto-visual">Buscar a un amigo por su usuario</span>
+        <svg aria-hidden="true"><use href="#i-buscar"/></svg>
+        <input id="ba-texto" type="search" placeholder="Busca a un amigo por su @usuario" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search">
+      </label>
+      <ul class="filas" id="ba-resultados" style="margin-top:10px"></ul>
+    </div>
     <div id="actividad-contenido" style="margin-top:14px"></div>
   </main>
 
@@ -569,8 +585,6 @@
 
 <nav class="nav" aria-label="Secciones">
   <button type="button" data-accion="ir" data-vista="inicio" aria-label="Inicio" aria-current="page"><svg aria-hidden="true"><use href="#i-inicio"/></svg></button>
-  <button type="button" data-accion="ir" data-vista="buscar" aria-label="Buscar" hidden><svg aria-hidden="true"><use href="#i-buscar"/></svg></button>
-  <button type="button" class="anotar" data-accion="anotar" aria-label="Anotar un buñuelo"><svg aria-hidden="true"><use href="#i-mas"/></svg></button>
   <button type="button" data-accion="ir" data-vista="actividad" aria-label="Actividad de tus amigos"><svg aria-hidden="true"><use href="#i-actividad"/></svg><span class="punto" id="punto-actividad" hidden></span></button>
   <button type="button" data-accion="ir" data-vista="perfil" aria-label="Tu perfil"><svg aria-hidden="true"><use href="#i-perfil"/></svg></button>
 </nav>
@@ -973,13 +987,11 @@
     window.scrollTo(0, 0);
     if (nombre === 'inicio' && mapa) setTimeout(() => mapa.resize(), 50);
     if (nombre === 'actividad') { cargarActividad(); guardarLocal(CLAVE_ACTIVIDAD_VISTA, Date.now()); $('punto-actividad').hidden = true; }
-    if (nombre === 'buscar') setTimeout(() => $('buscar-texto').focus(), 100);
     repintar();
   }
   function repintar() {
     pintarAvatarInicio();
-    if (vista === 'inicio') pintarInicio();
-    else if (vista === 'buscar') pintarBuscar();
+    if (vista === 'inicio') { pintarInicio(); pintarBuscar(); }
     else if (vista === 'actividad') pintarActividad();
     else if (vista === 'perfil') pintarPerfil();
     if (lugarAbierto && $('hoja-lugar').classList.contains('abierta')) pintarLugar();
@@ -1660,7 +1672,6 @@
   // ---------------- Buscar (sitios) ----------------
   function pintarBuscar() {
     const t = $('buscar-texto').value.trim().toLowerCase();
-    $('buscar-explorar').hidden = !!t;
     if (!t) { $('buscar-resultados').innerHTML = ''; return; }
     const sin = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
     const q = sin(t);
@@ -1687,15 +1698,27 @@
     h += '<div class="stats"><div><b>' + ult.size + '</b><span>' + (ult.size === 1 ? 'probado' : 'probados') + '</span></div>' +
       '<div><b>' + racha() + '</b><span>' + (racha() === 1 ? 'semana de racha' : 'semanas de racha') + '</span></div>' +
       '<div><b>' + porProbar.size + '</b><span>por probar</span></div></div>';
-    h += '<h2 class="seccion" style="margin-top:20px;font-size:1.1rem">Mis cuatro</h2><div class="cuatro">' + cuatro.map((id, i) => {
+    if (p) {
+      const amigosP = yoDatos.amigos || [];
+      const nSol = yoDatos.solicitudes ? yoDatos.solicitudes.recibidas.length : 0;
+      h += '<div class="fila entre" style="margin-top:20px"><h2 class="seccion" style="font-size:1.1rem">Mis amigos' + (amigosP.length ? ' · ' + amigosP.length : '') + '</h2>' +
+        (amigosP.length ? '<button type="button" class="enlace" style="padding:0" data-accion="ver-amigos">Ver todos</button>' : '') + '</div>' +
+        (nSol ? '<button type="button" class="aviso-solicitudes" data-accion="ir" data-vista="actividad">' + nSol + (nSol === 1 ? ' persona quiere' : ' personas quieren') + ' ser tu amigo. Responder →</button>' : '') +
+        '<div class="amigos-fila" style="margin-top:8px" aria-label="Tus amigos">' + amigosP.map((a) =>
+          '<button type="button" data-accion="abrir-amigo" data-id="' + escapar(a.id) + '">' + circulo('inicial', a.avatar, a.nombre) + escapar(a.nombre.split(' ')[0]) + '</button>').join('') +
+        '<button type="button" class="invitar" data-accion="agregar-amigo"><span class="inicial">+</span>Agregar</button></div>' +
+        (amigosP.length ? '<p class="sub" style="margin:2px 0 0;font-size:.85rem">Toca a un amigo para ver su perfil, su diario y sus favoritos.</p>' : '');
+    }
+    h += '<h2 class="seccion" style="margin-top:20px;font-size:1.1rem">Mis favoritos</h2><div class="cuatro">' + cuatro.map((id, i) => {
       const l = id && lugarPorId(id);
       return l ? '<button type="button" data-accion="favorito" data-pos="' + i + '" aria-label="Favorito ' + (i + 1) + ': ' + escapar(l.nombre) + '. Cambiar">' + bun() + '<span>' + escapar(l.nombre) + '</span></button>'
                : '<button type="button" class="libre" data-accion="favorito" data-pos="' + i + '" aria-label="Elegir favorito ' + (i + 1) + '">+</button>';
     }).join('') + '</div>';
-    h += '<div class="pastillas" role="tablist" style="margin-top:20px">' + [['diario', 'Diario'], ['porprobar', 'Por probar'], ['listas', 'Listas']].map(([k, t]) =>
+    h += '<div class="pastillas pestanas" role="tablist" style="margin-top:20px">' + [['diario', 'Diario'], ['probados', 'Probados'], ['porprobar', 'Por probar'], ['listas', 'Listas']].map(([k, t]) =>
       '<button type="button" class="pastilla' + (subPerfil === k ? ' on' : '') + '" role="tab" aria-selected="' + (subPerfil === k) + '" data-accion="sub-perfil" data-sub="' + k + '">' + t + '</button>').join('') + '</div>';
     h += '<div style="margin-top:12px">';
     if (subPerfil === 'diario') h += htmlDiario();
+    else if (subPerfil === 'probados') h += htmlProbados(ult);
     else if (subPerfil === 'porprobar') {
       const ids = Array.from(porProbar.keys()).map(lugarPorId).filter(Boolean);
       h += ids.length ? '<ul class="filas">' + ids.map((l) => '<li class="fila-sitio"><button type="button" class="abrir" data-accion="abrir-lugar" data-id="' + escapar(l.id) + '"><span class="mini">' + bun() + '</span><span><strong>' + escapar(l.nombre) + '</strong><small>' + escapar(l.barrio || 'Bogotá') + ' · ' + escapar(formatoPrecio(l.precio)) + '</small></span></button>' +
@@ -1712,11 +1735,25 @@
       : '<button type="button" class="boton-resumen" style="background:var(--tostada);color:var(--chocolate)" data-accion="resumen">Tu resumen buñuelero llega el ' + fechaLarga(CONFIG.resumenDesde) + '</button>';
     $('perfil-contenido').innerHTML = h;
   }
+  /** Lo que he probado: una cuadrícula por sitio (como "Films" en Letterboxd), con tu última calificación. */
+  function htmlProbados(ult) {
+    const items = Array.from(ult.values()).filter((e) => lugarPorId(e.idLugar));
+    if (!items.length) return oso('piensa') + '<p class="vacio" style="text-align:center">Aquí van a aparecer todos los sitios donde has probado buñuelo, cada uno con tu calificación.</p>';
+    const orden = ordenProbados === 'nota' ? items.slice().sort((a, b) => (b.cal || 0) - (a.cal || 0) || (b.fecha > a.fecha ? 1 : -1)) : items;
+    return '<div class="fila entre" style="margin-bottom:10px"><p class="sub" style="margin:0">' + items.length + (items.length === 1 ? ' sitio probado' : ' sitios probados') + '</p>' +
+      '<div class="orden" role="group" aria-label="Ordenar">' + [['fecha', 'Recientes'], ['nota', 'Mejor calificados']].map(([k, t]) =>
+        '<button type="button" data-accion="orden-probados" data-orden="' + k + '" aria-pressed="' + (ordenProbados === k) + '">' + t + '</button>').join('') + '</div></div>' +
+      '<div class="probados">' + orden.map((e) => {
+        const l = lugarPorId(e.idLugar);
+        return '<button type="button" data-accion="abrir-lugar" data-id="' + escapar(l.id) + '" aria-label="' + escapar(l.nombre) + (e.cal ? ', ' + e.cal + ' de 5' : '') + '">' + bun() +
+          '<strong>' + escapar(l.nombre) + '</strong>' + (e.cal ? calHtml(e.cal, 11) : '<small>Sin calificar</small>') + (e.volveria === true ? '<small>Volvería</small>' : '') + '</button>';
+      }).join('') + '</div>';
+  }
   function htmlDiario(ajenas) {
     const editable = !ajenas;
     const lista = (ajenas || entradasOrdenadas()).filter((e) => lugarPorId(e.idLugar));
     if (!lista.length && ajenas) return '<p class="vacio">Todavía no ha anotado buñuelos.</p>';
-    if (!lista.length) return oso('piensa') + '<p class="vacio" style="text-align:center">Tu diario está vacío. Cuando pruebes un buñuelo, toca el + de abajo y anótalo con su fecha.</p>';
+    if (!lista.length) return oso('piensa') + '<p class="vacio" style="text-align:center">Tu diario está vacío. Cuando pruebes un buñuelo, búscalo en Inicio o tócalo en el mapa y dale a «Ya lo probé».</p>';
     let mesActual = '', h = '';
     lista.forEach((e) => {
       const [y, m, d] = e.fecha.split('-').map(Number);
@@ -1737,7 +1774,7 @@
     const ids = Array.from(ultimas().keys()).map(lugarPorId).filter(Boolean);
     const quitar = cuatro[pos] ? '<button type="button" class="secundario" style="width:100%;margin-bottom:12px" data-accion="quitar-favorito" data-pos="' + pos + '">Dejar este espacio libre</button>' : '';
     if (!ids.length) {
-      abrirElegir('Mis cuatro', [], null, '<p class="vacio">Tus cuatro favoritos salen de lo que has anotado. Anota tu primer buñuelo y vuelve.</p>');
+      abrirElegir('Mis favoritos', [], null, '<p class="vacio">Tus favoritos salen de lo que has anotado. Anota tu primer buñuelo y vuelve.</p>');
       return;
     }
     abrirElegir('Favorito ' + (pos + 1) + ' de 4', ids.map((l) => ({ id: l.id, texto: l.nombre, html: filaSitioElegir(l) })), (id) => {
@@ -1775,6 +1812,7 @@
 
   // ---------------- Amigos (entrar con Google vía Supabase) ----------------
   const CLAVE_INVITACION = 'mejorbunuelo.invitacionPendiente';
+  let ordenProbados = 'fecha';
   let supa = null, yoDatos = null, nombreInvitador = '', errorAmigos = '';
   const CLAVE_SESION = 'buenamuela.sesion';
   let resumenPendiente = false;           // llegó del correo del resumen y tiene que entrar primero
@@ -1831,6 +1869,7 @@
       }
     } catch (e) {}
     if (yoDatos && yoDatos.perfil) cargarActividad(true);
+    marcarSolicitudes();
     repintar();
   }
   async function aceptarInvitacionPendiente() {
@@ -1853,7 +1892,7 @@
       if (!r.ok) return;
       eventos = r.eventos || [];
       const vista0 = leerLocal(CLAVE_ACTIVIDAD_VISTA, 0);
-      $('punto-actividad').hidden = vista === 'actividad' || !eventos.some((e) => !e.propio && e.creado > vista0);
+      $('punto-actividad').hidden = vista === 'actividad' || (!eventos.some((e) => !e.propio && e.creado > vista0) && !(yoDatos.solicitudes && yoDatos.solicitudes.recibidas.length));
       if (vista === 'actividad') pintarActividad();
     } catch (e) {}
   }
@@ -1863,6 +1902,7 @@
 
   function pintarActividad() {
     const caja = $('actividad-contenido');
+    $('buscar-amigo').hidden = true;
     if (errorAmigos && !(yoDatos && yoDatos.conectado)) { caja.innerHTML = '<p class="vacio">' + escapar(errorAmigos) + '</p>'; return; }
     const invit = nombreInvitador ? '<div class="tarjeta" style="margin-bottom:14px"><strong>' + escapar(nombreInvitador) + ' te invitó.</strong><p class="sub">Entra para que cada uno vea qué buñuelos probó el otro.</p></div>' : '';
     if (!yoDatos || !yoDatos.conectado) {
@@ -1895,17 +1935,77 @@
       $('p-form').addEventListener('submit', guardarNombre);
       return;
     }
+    $('buscar-amigo').hidden = false;
     const amigos = yoDatos.amigos || [];
-    let h = '<div class="amigos-fila" aria-label="Tus amigos">' + amigos.map((a) =>
+    const recibidas = (yoDatos.solicitudes && yoDatos.solicitudes.recibidas) || [];
+    let h = recibidas.length ? '<h2 class="seccion" style="font-size:1.05rem;margin-bottom:8px">' + (recibidas.length === 1 ? 'Te quiere agregar' : 'Te quieren agregar') + '</h2><ul class="filas" style="margin-bottom:16px">' +
+      recibidas.map((x) => filaPersona(x, '<button type="button" class="llegar con-color" data-accion="responder-solicitud" data-id="' + escapar(x.id) + '" data-si="1">Aceptar</button>' +
+        '<button type="button" class="llegar" data-accion="responder-solicitud" data-id="' + escapar(x.id) + '" data-si="0" aria-label="Rechazar a ' + escapar(x.nombre) + '">✕</button>')).join('') + '</ul>' : '';
+    h += '<div class="amigos-fila" aria-label="Tus amigos">' + amigos.map((a) =>
       '<button type="button" data-accion="abrir-amigo" data-id="' + escapar(a.id) + '">' + circulo('inicial', a.avatar, a.nombre) + escapar(a.nombre.split(' ')[0]) + '</button>').join('') +
       '<button type="button" class="invitar" data-accion="invitar"><span class="inicial">+</span>Invitar</button></div>';
     h += '<div class="pastillas" role="tablist" style="margin-top:16px">' + [['amigos', 'Amigos'], ['tu', 'Tú']].map(([k, t]) =>
       '<button type="button" class="pastilla' + (subActividad === k ? ' on' : '') + '" role="tab" aria-selected="' + (subActividad === k) + '" data-accion="sub-actividad" data-sub="' + k + '">' + t + '</button>').join('') + '</div>';
     const lista = (eventos || []).filter((e) => (subActividad === 'tu') === !!e.propio).filter((e) => lugarPorId(e.idLugar));
     if (eventos === null) h += '<p class="vacio" style="margin-top:14px">Cargando…</p>';
-    else if (!lista.length) h += '<div style="margin-top:14px">' + oso('duerme') + '</div><p class="vacio" style="text-align:center">' + (subActividad === 'tu' ? 'Todavía no has anotado nada.' : (amigos.length ? 'Tus amigos no han anotado nada en los últimos 60 días.' : 'Invita a un amigo con el botón + para empezar.')) + '</p>';
+    else if (!lista.length) h += '<div style="margin-top:14px">' + oso('duerme') + '</div><p class="vacio" style="text-align:center">' + (subActividad === 'tu' ? 'Todavía no has anotado nada.' : (amigos.length ? 'Tus amigos no han anotado nada en los últimos 60 días.' : 'Busca a tus amigos por su @usuario arriba, o invítalos con el botón +.')) + '</p>';
     else h += '<ul class="filas" style="margin-top:14px">' + lista.map(htmlEvento).join('') + '</ul>';
     caja.innerHTML = h;
+  }
+  /** Fila de una persona: su círculo, nombre, @usuario y botones a la derecha. */
+  function filaPersona(x, botones) {
+    return '<li class="fila-sitio"><button type="button" class="abrir"' + (x.estado === 'amigo' || x.amigo ? ' data-accion="abrir-amigo" data-id="' + escapar(x.id) + '"' : ' tabindex="-1"') + '>' + circulo('inicial', x.avatar, x.nombre) +
+      '<span><strong>' + escapar(x.nombre) + '</strong><small>' + (x.usuario ? '@' + escapar(x.usuario) : '') + '</small></span></button>' + botones + '</li>';
+  }
+  let baTiempo = 0, baUltima = '';
+  function buscarAmigoEscrito() {
+    clearTimeout(baTiempo);
+    const q = $('ba-texto').value.trim().replace(/^@/, '').toLowerCase();
+    if (q.length < 3) { baUltima = ''; $('ba-resultados').innerHTML = q ? '<li class="vacio">Escribe al menos 3 letras de su usuario.</li>' : ''; return; }
+    baTiempo = setTimeout(async () => {
+      baUltima = q;
+      const r = await pedir('/api/buscar-amigo?u=' + encodeURIComponent(q)).catch(() => null);
+      if (q !== baUltima) return;
+      pintarResultadosAmigo(r);
+    }, 250);
+  }
+  function pintarResultadosAmigo(r) {
+    if (!r || !r.ok) { $('ba-resultados').innerHTML = '<li class="vacio">' + escapar((r && r.mensaje) || 'No pudimos buscar. Revisa tu conexión.') + '</li>'; return; }
+    if (!r.resultados.length) { $('ba-resultados').innerHTML = '<li class="vacio">Nadie tiene un usuario que empiece por “@' + escapar(baUltima) + '”. Si no tiene cuenta, invítalo con el botón +.</li>'; return; }
+    $('ba-resultados').innerHTML = r.resultados.map((x) => {
+      const b = x.estado === 'tu' ? '<span class="llegar">Eres tú</span>'
+        : x.estado === 'amigo' ? '<span class="llegar">Amigos ✓</span>'
+        : x.estado === 'enviada' ? '<span class="llegar">Solicitud enviada</span>'
+        : x.estado === 'recibida' ? '<button type="button" class="llegar con-color" data-accion="responder-solicitud" data-id="' + escapar(x.id) + '" data-si="1">Aceptar</button>'
+        : '<button type="button" class="llegar con-color" data-accion="solicitar" data-id="' + escapar(x.id) + '">Agregar</button>';
+      return filaPersona(x, b);
+    }).join('');
+  }
+  async function refrescarYo() {
+    const f = await pedir('/api/yo?d=' + encodeURIComponent(idDispositivo)).catch(() => null);
+    if (f && f.ok) yoDatos = f;
+    marcarSolicitudes();
+  }
+  function marcarSolicitudes() {
+    const n = yoDatos && yoDatos.solicitudes ? yoDatos.solicitudes.recibidas.length : 0;
+    if (n && vista !== 'actividad') $('punto-actividad').hidden = false;
+  }
+  async function solicitar(id, boton) {
+    if (boton) boton.disabled = true;
+    const r = await pedir('/api/solicitud', { id }).catch(() => null);
+    if (!r || !r.ok) { if (boton) boton.disabled = false; avisar((r && r.mensaje) || 'No pudimos mandar la solicitud.', 'error'); return; }
+    if (r.estado === 'amigo') { avisar('Listo, ya son amigos.'); await refrescarYo(); cargarActividad(); repintar(); }
+    else avisar('Solicitud enviada. Cuando la acepte, van a poder ver sus diarios.');
+    const q = baUltima;
+    if (q) pintarResultadosAmigo(await pedir('/api/buscar-amigo?u=' + encodeURIComponent(q)).catch(() => null));
+  }
+  async function responderSolicitud(id, aceptar) {
+    const r = await pedir('/api/solicitud/responder', { id, aceptar }).catch(() => null);
+    if (!r || !r.ok) { avisar((r && r.mensaje) || 'No pudimos responder.', 'error'); await refrescarYo(); repintar(); return; }
+    const x = yoDatos.solicitudes.recibidas.find((s) => s.id === id);
+    avisar(aceptar ? 'Listo: ahora tú y ' + (x ? x.nombre : 'tu amigo') + ' son amigos.' : 'Solicitud rechazada. No le avisamos.');
+    await refrescarYo(); if (aceptar) cargarActividad(); repintar();
+    if (baUltima) pintarResultadosAmigo(await pedir('/api/buscar-amigo?u=' + encodeURIComponent(baUltima)).catch(() => null));
   }
   function htmlEvento(e) {
     const l = lugarPorId(e.idLugar);
@@ -1954,7 +2054,7 @@
       '<div><b>' + rch + '</b><span>' + (rch === 1 ? 'semana de racha' : 'semanas de racha') + '</span></div>' +
       '<div><b>' + r.porProbar.length + '</b><span>por probar</span></div></div>';
     if (c4.some((x) => x && lugarPorId(x))) {
-      h += '<h3 style="margin:18px 0 0;font-size:1.05rem">Sus cuatro</h3><div class="cuatro">' + c4.map((lid) => {
+      h += '<h3 style="margin:18px 0 0;font-size:1.05rem">Sus favoritos</h3><div class="cuatro">' + c4.map((lid) => {
         const l = lid && lugarPorId(lid);
         return l ? '<button type="button" data-accion="abrir-lugar" data-id="' + escapar(l.id) + '">' + bun() + '<span>' + escapar(l.nombre) + '</span></button>'
                  : '<button type="button" class="libre" disabled aria-label="Espacio libre"></button>';
@@ -2206,7 +2306,11 @@
       case 'quitar-favorito': cuatro[Number(b.dataset.pos)] = null; guardarLocal(CLAVE_CUATRO, cuatro); guardarCuatroServidor(); cerrarElegir(); pintarPerfil(); break;
       case 'cuenta': abrirCuenta(); break;
       case 'editar-avatar': abrirEditorAvatar(); break;
+      case 'orden-probados': ordenProbados = b.dataset.orden; pintarPerfil(); break;
       case 'ver-amigos': verAmigos(); break;
+      case 'solicitar': solicitar(id, b); break;
+      case 'responder-solicitud': responderSolicitud(id, b.dataset.si === '1'); break;
+      case 'agregar-amigo': irA('actividad'); setTimeout(() => $('ba-texto').focus(), 150); break;
       case 'resumen': abrirWrapped(); break;
       case 'entrar-google': entrarConGoogle(); break;
       case 'modo-cuenta': modoCuenta = b.dataset.modo; pintarActividad(); break;
@@ -2222,6 +2326,7 @@
   $('form-lugar').addEventListener('submit', enviarNuevo);
   $('a-resena').addEventListener('input', () => { $('a-contador').textContent = $('a-resena').value.length + ' / 500'; });
   $('buscar-texto').addEventListener('input', pintarBuscar);
+  $('ba-texto').addEventListener('input', buscarAmigoEscrito);
   $('w-cerrar').addEventListener('click', cerrarWrapped);
   $('w-adelante').addEventListener('click', siguienteEscena);
   $('w-atras').addEventListener('click', anteriorEscena);

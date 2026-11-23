@@ -132,3 +132,12 @@ ALTER TABLE votos ADD COLUMN id_perfil TEXT;
 ALTER TABLE perfiles ADD COLUMN cuatro TEXT;          -- JSON con 4 ids de sitio o null
 ALTER TABLE perfiles ADD COLUMN avatar TEXT;          -- JSON {p: personaje, g: gesto 0/1, f: color del círculo, frase}
 CREATE INDEX IF NOT EXISTS idx_votos_perfil ON votos(id_lugar, id_perfil);
+
+-- Solicitudes de amistad por @usuario. Al aceptar se borran y se crea la amistad en los dos sentidos.
+CREATE TABLE IF NOT EXISTS solicitudes (
+  de TEXT NOT NULL,
+  para TEXT NOT NULL,
+  fecha TEXT NOT NULL,
+  PRIMARY KEY (de, para)
+);
+CREATE INDEX IF NOT EXISTS solicitudes_para ON solicitudes (para);
