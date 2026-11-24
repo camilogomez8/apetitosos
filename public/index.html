@@ -82,8 +82,6 @@
   }
   .pastilla.on { background: var(--mostaza); border-color: var(--chocolate); font-weight: 600; }
   .pastilla:disabled { background: transparent; border: 2px dashed #A69E8C; color: var(--gris); cursor: default; }
-  .pastilla .bolita { width: 30px; height: 30px; margin-left: -10px; border-radius: 50%; background: var(--crema); display: grid; place-items: center; }
-  .pastilla .bolita svg { width: 24px; height: 24px; }
   .temporada {
     display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px;
     background: var(--rojo); color: #FFF4DA; font-weight: 600; font-size: .75rem; letter-spacing: .05em;
@@ -100,8 +98,6 @@
     background: var(--chocolate-2); color: var(--leche); position: relative;
   }
   .nav button svg { width: 22px; height: 22px; }
-  .nav button.anotar { background: var(--leche); color: var(--chocolate); }
-  .nav button.anotar svg { width: 26px; height: 26px; }
   .nav button[aria-current="page"] { background: var(--mostaza); color: var(--chocolate); }
   .nav .punto { position: absolute; top: 8px; right: 10px; width: 10px; height: 10px; border-radius: 50%; background: var(--rojo); border: 2px solid var(--chocolate-2); }
   body.mapa-abierto .nav, body.hoja-completa .nav { display: none; }
@@ -307,6 +303,16 @@
   .amigos-fila .inicial { width: 54px; height: 54px; font-size: 1.3rem; }
   .amigos-fila .invitar .inicial { background: transparent; border: 2px dashed var(--gris); }
 
+  /* ---------- Oso guardián (formulario de cuenta) ---------- */
+  .oso-guardian { display: block; width: 150px; height: 150px; margin: 0 auto 4px; border-radius: 50%; border: 3px solid var(--chocolate); overflow: hidden; background: var(--mostaza); }
+  .oso-guardian img { display: block; width: 100%; height: 100%; }
+  .oso-guardian.uy { animation: no-no .45s ease-in-out; }
+  @keyframes no-no { 20% { transform: rotate(-6deg); } 45% { transform: rotate(5deg); } 70% { transform: rotate(-3deg); } 100% { transform: rotate(0); } }
+  @media (prefers-reduced-motion: reduce) { .oso-guardian.uy { animation: none; } }
+  .con-ojo { position: relative; display: block; margin-top: 6px; }
+  .con-ojo input { padding-right: 92px; margin-top: 0; }
+  .con-ojo button { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: 0; background: var(--tostada); color: var(--chocolate); border-radius: 14px; padding: 6px 12px; font: inherit; font-size: .85rem; font-weight: 600; }
+
   /* ---------- Buscadores ---------- */
   .campo.buscador { position: relative; display: block; }
   .campo.buscador svg { position: absolute; left: 16px; top: 50%; width: 20px; height: 20px; transform: translateY(-50%); color: var(--gris); pointer-events: none; }
@@ -335,7 +341,8 @@
   .con-cara img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .avatar-editable { position: relative; cursor: pointer; }
   .avatar-editable .lapiz { position: absolute; right: -4px; bottom: -4px; width: 26px; height: 26px; border-radius: 50%; background: var(--leche); border: 2px solid var(--chocolate); display: grid; place-items: center; font-size: .8rem; line-height: 1; }
-  .frase { margin: 4px 0 0; font-size: .92rem; color: var(--chocolate-2); font-style: italic; }
+  .frase { margin: 4px 0 0; font-size: .92rem; color: var(--chocolate-2); font-style: italic; overflow-wrap: anywhere; }
+  .fila-sitio small, .resena { overflow-wrap: anywhere; }
   .av-escena { width: 190px; height: 190px; margin: 0 auto 6px; border-radius: 50%; border: 3px solid var(--chocolate); display: grid; place-items: end center; overflow: hidden; transition: background-color .25s; }
   .av-escena img { width: 74%; height: auto; margin-bottom: -6%; }
   .av-titulo { margin: 16px 0 8px; font-weight: 700; }
@@ -350,8 +357,6 @@
   .av-colores button { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--chocolate); padding: 0; }
   .av-colores button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--leche), 0 0 0 6px var(--chocolate); }
   .enlace-invitacion { display: block; margin: 10px 0; padding: 10px 12px; border-radius: 14px; background: var(--crema); font-size: .82rem; word-break: break-all; user-select: all; }
-  .boton-google { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 56px; border: 2px solid var(--chocolate); border-radius: 30px; background: var(--leche); font-weight: 700; font-size: 1.05rem; }
-  .boton-google svg { width: 22px; height: 22px; }
   .mascota-caja { display: grid; place-items: center; margin: 8px 0 6px; }
   .mascota-caja img { width: 160px; height: auto; max-height: 190px; object-fit: contain; }
   .mascota-caja.ancha img { width: 240px; max-height: 200px; }
@@ -515,7 +520,6 @@
     
     <symbol id="i-inicio" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
     <symbol id="i-buscar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></g></symbol>
-    <symbol id="i-mas" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></symbol>
     <symbol id="i-corazon" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" stroke-linejoin="round"/></symbol>
     <symbol id="i-actividad" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.6 3.5-5.5 6.5-5.5s5.5 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M17 14.5c2.4 0 4 1.4 4.6 4"/></g></symbol>
     <symbol id="i-perfil" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></g></symbol>
@@ -703,9 +707,9 @@
 
 <script>
 'use strict';
-  // La configuración real (clave del mapa, captcha, Supabase) llega del servidor en /api/config al iniciar.
+  // La configuración real (clave del mapa, captcha, fecha del resumen) llega del servidor en /api/config al iniciar.
   const CONFIG = {
-    mapKey: '', turnstileSiteKey: '', supabaseUrl: '', supabaseAnonKey: '', plato: 'buñuelo', distanciaDuplicado: 60,
+    mapKey: '', turnstileSiteKey: '', plato: 'buñuelo', distanciaDuplicado: 60,
     limites: { latMin: 4.44, latMax: 4.84, lngMin: -74.23, lngMax: -73.98 },
     urlApp: location.origin + location.pathname,
     demoWrapped: new URLSearchParams(location.search).get('demo') === 'wrapped',
@@ -715,7 +719,6 @@
   };
   const CON_SERVIDOR = /^https?:$/.test(location.protocol);
   const $ = (id) => document.getElementById(id);
-  const CAL_MAX = 5;
 
   // ---------------- Estado ----------------
   let mapa = null, mapaListo = false, mapaGrande = false;
@@ -739,12 +742,12 @@
   // ---------------- Almacenamiento del navegador ----------------
   const almacen = (function () {
     try { const k = '__prueba'; localStorage.setItem(k, '1'); localStorage.removeItem(k); return localStorage; }
-    catch (e) { return null; }
+    catch { return null; }
   })();
   function leerLocal(clave, porDefecto) {
-    try { const v = almacen && almacen.getItem(clave); return v ? JSON.parse(v) : porDefecto; } catch (e) { return porDefecto; }
+    try { const v = almacen && almacen.getItem(clave); return v ? JSON.parse(v) : porDefecto; } catch { return porDefecto; }
   }
-  function guardarLocal(clave, valor) { try { if (almacen) almacen.setItem(clave, JSON.stringify(valor)); } catch (e) {} }
+  function guardarLocal(clave, valor) { try { if (almacen) almacen.setItem(clave, JSON.stringify(valor)); } catch {} }
   function nuevoId() {
     if (window.crypto && crypto.randomUUID) return 'd-' + crypto.randomUUID();
     let s = 'd-'; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16); return s;
@@ -878,7 +881,7 @@
   }
   const MESES = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
   const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
-  function fechaCorta(f) { const [y, m, d] = f.split('-').map(Number); return d + ' ' + MESES_LARGOS[m - 1].slice(0, 3) + '.'; }
+  function fechaCorta(f) { const [, m, d] = f.split('-').map(Number); return d + ' ' + MESES_LARGOS[m - 1].slice(0, 3) + '.'; }
   function haceCuanto(ms) {
     const min = Math.round((Date.now() - ms) / 60000);
     if (min < 1) return 'ahora';
@@ -972,7 +975,7 @@
       }
       guardarDiario();
       repintar();
-    } catch (e) { /* se queda la copia del teléfono */ }
+    } catch { /* se queda la copia del teléfono */ }
   }
 
   // ---------------- Navegación entre vistas ----------------
@@ -1088,8 +1091,8 @@
   function calentarEstilo() {
     const estilo = mapa.getStyle();
     const capas = (estilo && estilo.layers) || [];
-    const pintar = (id, prop, valor) => { try { mapa.setPaintProperty(id, prop, valor); } catch (e) {} };
-    const ocultar = (id) => { try { mapa.setLayoutProperty(id, 'visibility', 'none'); } catch (e) {} };
+    const pintar = (id, prop, valor) => { try { mapa.setPaintProperty(id, prop, valor); } catch {} };
+    const ocultar = (id) => { try { mapa.setLayoutProperty(id, 'visibility', 'none'); } catch {} };
     capas.forEach((c) => {
       const id = c.id.toLowerCase();
       const fuente = (c['source-layer'] || '').toLowerCase();
@@ -1486,7 +1489,7 @@
           avisar('¡Voto contado! ' + r.lugar.nombre + ' suma ' + r.lugar.votos + (r.lugar.votos === 1 ? ' voto.' : ' votos.'));
         } else avisar(r.mensaje);
       } else avisar(r.mensaje || 'No pudimos guardar tu voto. Intenta de nuevo.', 'error');
-    } catch (e) { avisar('No pudimos guardar tu voto. Revisa tu conexión e intenta de nuevo.', 'error'); }
+    } catch { avisar('No pudimos guardar tu voto. Revisa tu conexión e intenta de nuevo.', 'error'); }
     if (lugarAbierto) pintarLugar();
     if (vista === 'inicio') pintarInicio();
   }
@@ -1544,7 +1547,7 @@
         avisar('¡Listo! Tu buñuelo ya está en el mapa.');
       } else if (r.duplicado) { guardarLugar(r.lugar); abrirLugar(r.lugar.id, true); }
       else { error(r.mensaje || 'No pudimos guardar el sitio. Intenta de nuevo.'); b.disabled = false; b.textContent = 'Guardar y votar'; }
-    } catch (err) { avisar('No pudimos guardar el sitio. Revisa tu conexión e intenta de nuevo.', 'error'); b.disabled = false; b.textContent = 'Guardar y votar'; }
+    } catch { avisar('No pudimos guardar el sitio. Revisa tu conexión e intenta de nuevo.', 'error'); b.disabled = false; b.textContent = 'Guardar y votar'; }
   }
 
   // ---------------- Anotar ----------------
@@ -1619,7 +1622,6 @@
     const error = (t) => { $('a-error').textContent = t; $('a-error').hidden = false; };
     $('a-error').hidden = true;
     if (!a.idLugar) { error('Elige el sitio.'); return; }
-    const l = lugarPorId(a.idLugar);
     if (a.modo === 'porprobar') { await alternarPorProbar(a.idLugar); cerrarHojas(); return; }
     if (!a.cal) { error('Toca los buñuelos para decir qué tal estaba.'); return; }
     if (modoDemo) { avisar('Esto es una demostración: no se guarda.'); return; }
@@ -1636,7 +1638,7 @@
       const total = ultimas().size;
       avisar(r.nueva ? '¡Sí, chef! Anotado. Llevas ' + total + (total === 1 ? ' sitio probado.' : ' sitios probados.') : 'Listo, guardamos los cambios.');
       repintar();
-    } catch (e) { error('No pudimos anotarlo. Revisa tu conexión e intenta de nuevo.'); pintarAnotar(); }
+    } catch { error('No pudimos anotarlo. Revisa tu conexión e intenta de nuevo.'); pintarAnotar(); }
   }
   async function borrarEntrada() {
     const b = $('a-borrar');
@@ -1648,7 +1650,7 @@
       entradas = entradas.filter((e) => e.id !== anotacion.id);
       guardarDiario(); guardarLugar(r.lugar);
       cerrarHojas(); avisar('Borramos esa anotación.'); repintar();
-    } catch (e) { avisar('No pudimos borrarla. Revisa tu conexión.', 'error'); }
+    } catch { avisar('No pudimos borrarla. Revisa tu conexión.', 'error'); }
   }
 
   // ---------------- Hoja para elegir ----------------
@@ -1810,10 +1812,10 @@
     });
   }
 
-  // ---------------- Amigos (entrar con Google vía Supabase) ----------------
+  // ---------------- Cuenta y amigos ----------------
   const CLAVE_INVITACION = 'mejorbunuelo.invitacionPendiente';
   let ordenProbados = 'fecha';
-  let supa = null, yoDatos = null, nombreInvitador = '', errorAmigos = '';
+  let yoDatos = null, nombreInvitador = '';
   const CLAVE_SESION = 'buenamuela.sesion';
   let resumenPendiente = false;           // llegó del correo del resumen y tiene que entrar primero
   let modoCuenta = 'crear';               // 'crear' | 'entrar'
@@ -1829,31 +1831,9 @@
     const q = params.toString();
     history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
   })();
-  function cargarScript(src) {
-    return new Promise((ok, mal) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => mal(new Error('No cargó ' + src)); document.head.appendChild(s); });
-  }
   async function iniciarAmigos() {
     const pendiente = leerLocal(CLAVE_INVITACION, null);
     if (pendiente) pedir('/api/invitacion?codigo=' + encodeURIComponent(pendiente)).then((r) => { if (r && r.ok) { nombreInvitador = r.nombre; if (vista === 'actividad') pintarActividad(); } }).catch(() => {});
-    // Google (Supabase) es opcional: solo se carga si está configurado.
-    if (CONFIG.supabaseUrl && CONFIG.supabaseAnonKey) try {
-      await cargarScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
-      supa = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, { auth: { flowType: 'pkce', detectSessionInUrl: true, persistSession: true, autoRefreshToken: true } });
-      supa.auth.onAuthStateChange((evento, sesion) => {
-        if (evento === 'INITIAL_SESSION') return;
-        const nuevo = sesion ? sesion.access_token : '';
-        if (nuevo === tokenSesion) return;
-        tokenSesion = nuevo;
-        setTimeout(() => { cargarYo(); cargarDiario(); }, 0);
-      });
-      const { data } = await supa.auth.getSession();
-      if (data && data.session) tokenSesion = data.session.access_token;
-      if (/[?&]code=/.test(location.search)) {
-        const params = new URLSearchParams(location.search); params.delete('code');
-        const q = params.toString();
-        history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
-      }
-    } catch (e) { errorAmigos = 'No pudimos cargar el ingreso con Google. Revisa tu conexión y recarga.'; }
     await cargarYo();
     if (tokenSesion) cargarDiario();
     if (leerLocal(CLAVE_INVITACION, null) && !(yoDatos && yoDatos.perfil)) irA('actividad');
@@ -1867,7 +1847,7 @@
         if (!r.conectado && tokenSesion.startsWith('bm_')) { tokenSesion = ''; guardarLocal(CLAVE_SESION, null); }
         if (r.perfil) await aceptarInvitacionPendiente();
       }
-    } catch (e) {}
+    } catch {}
     if (yoDatos && yoDatos.perfil) cargarActividad(true);
     marcarSolicitudes();
     repintar();
@@ -1894,36 +1874,88 @@
       const vista0 = leerLocal(CLAVE_ACTIVIDAD_VISTA, 0);
       $('punto-actividad').hidden = vista === 'actividad' || (!eventos.some((e) => !e.propio && e.creado > vista0) && !(yoDatos.solicitudes && yoDatos.solicitudes.recibidas.length));
       if (vista === 'actividad') pintarActividad();
-    } catch (e) {}
+    } catch {}
   }
   function enlaceInvitacion() { return location.origin + location.pathname + '?amigo=' + yoDatos.perfil.codigo; }
-  const ICONO_GOOGLE = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.9 6.1C12.5 13.6 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/><path fill="#FBBC05" d="M10.6 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.2 0-11.5-4.1-13.4-9.8l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
   function oso(pose, ancha) { return '<div class="mascota-caja' + (ancha ? ' ancha' : '') + '"><img src="/img/oso-' + pose + '.webp" alt="" loading="lazy"></div>'; }
 
+  // ---------------- Oso guardián ----------------
+  // Mira lo que escribes en el nombre, el usuario y el correo, se tapa los ojos en la contraseña,
+  // espía entre los dedos si tocas "Mostrar" y niega cuando hay un error. Son 9 retratos con el mismo encuadre.
+  const POSES_OSO = ['reposo', 'izq2', 'izq1', 'centro', 'der1', 'der2', 'tapado', 'espia', 'uy'];
+  const OSO_GUARDIAN = '<span class="oso-guardian" id="oso-guardian"><img src="/img/og-reposo.webp" alt="El oso de Apetitosos" width="150" height="150"></span>';
+  let medidor = null, osoPrecargado = false, osoUy = 0;
+  function poseOso(pose) {
+    const img = document.querySelector('#oso-guardian img');
+    if (img && !img.src.endsWith('/og-' + pose + '.webp')) img.src = '/img/og-' + pose + '.webp';
+  }
+  function animarOso(form) {
+    if (!$('oso-guardian')) return;
+    if (!osoPrecargado) { osoPrecargado = true; POSES_OSO.forEach((k) => { new Image().src = '/img/og-' + k + '.webp'; }); }
+    const clave = $('f-clave'), ojo = $('f-ver-clave');
+    function lectura(input) {
+      if (!medidor) medidor = document.createElement('canvas').getContext('2d');
+      const st = getComputedStyle(input);
+      medidor.font = st.fontWeight + ' ' + st.fontSize + ' ' + st.fontFamily;
+      const hasta = input.selectionStart == null ? input.value.length : input.selectionStart;
+      const ancho = medidor.measureText(input.value.slice(0, hasta)).width + parseFloat(st.paddingLeft);
+      const r = Math.max(0, Math.min(0.999, ancho / Math.max(input.clientWidth * 0.7, 1)));   // casi nadie llena el campo entero
+      return ['izq2', 'izq1', 'centro', 'der1', 'der2'][Math.floor(r * 5)];
+    }
+    function estado() {
+      if (Date.now() < osoUy) return;
+      const a = document.activeElement;
+      if (a === clave || a === ojo) poseOso(clave.type === 'text' ? 'espia' : 'tapado');
+      else if (a && form.contains(a) && a.tagName === 'INPUT' && a.type !== 'checkbox') poseOso(lectura(a));
+      else poseOso('reposo');
+    }
+    form.addEventListener('focusin', estado);
+    form.addEventListener('focusout', () => setTimeout(estado, 0));
+    form.addEventListener('input', estado);
+    form.addEventListener('keyup', estado);
+    form.addEventListener('click', estado);
+    form._estadoOso = estado;
+    ojo.addEventListener('click', () => {
+      const ver = clave.type === 'password';
+      clave.type = ver ? 'text' : 'password';
+      ojo.textContent = ver ? 'Ocultar' : 'Mostrar';
+      ojo.setAttribute('aria-pressed', String(ver));
+      clave.focus();
+      estado();
+    });
+  }
+  function osoNiega() {
+    const oso = $('oso-guardian');
+    if (!oso) return;
+    osoUy = Date.now() + 1600;
+    poseOso('uy');
+    oso.classList.remove('uy'); void oso.offsetWidth; oso.classList.add('uy');
+    setTimeout(() => { osoUy = 0; const f = $('cuenta-form'); if (f && f._estadoOso) f._estadoOso(); }, 1650);
+  }
   function pintarActividad() {
     const caja = $('actividad-contenido');
     $('buscar-amigo').hidden = true;
-    if (errorAmigos && !(yoDatos && yoDatos.conectado)) { caja.innerHTML = '<p class="vacio">' + escapar(errorAmigos) + '</p>'; return; }
     const invit = nombreInvitador ? '<div class="tarjeta" style="margin-bottom:14px"><strong>' + escapar(nombreInvitador) + ' te invitó.</strong><p class="sub">Entra para que cada uno vea qué buñuelos probó el otro.</p></div>' : '';
     if (!yoDatos || !yoDatos.conectado) {
       const crear = modoCuenta === 'crear';
       caja.innerHTML = invit + (resumenPendiente ? '<div class="tarjeta" style="margin-bottom:14px"><strong>Tu resumen te espera.</strong><p class="sub">Entra a tu cuenta para verlo.</p></div>' : '') +
-        oso('saluda') + '<p style="text-align:center;font-size:1.1rem;line-height:1.4;margin:6px 0 16px">Crea tu cuenta para ver qué buñuelos están probando tus amigos, qué nota les ponen y qué tienen en Por probar.</p>' +
+        OSO_GUARDIAN + '<p style="text-align:center;font-size:1.1rem;line-height:1.4;margin:6px 0 16px">Crea tu cuenta para ver qué buñuelos están probando tus amigos, qué nota les ponen y qué tienen en Por probar.</p>' +
         '<div class="segmento"><button type="button" data-accion="modo-cuenta" data-modo="crear" aria-pressed="' + crear + '">Crear cuenta</button>' +
         '<button type="button" data-accion="modo-cuenta" data-modo="entrar" aria-pressed="' + !crear + '">Ya tengo cuenta</button></div>' +
         '<form id="cuenta-form" novalidate>' +
         (crear ? '<label class="campo">Cómo te van a ver tus amigos<input id="f-nombre" type="text" maxlength="30" autocomplete="nickname" placeholder="Ej: Camilo"></label>' : '') +
         '<label class="campo">Usuario<input id="f-usuario" type="text" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Ej: camilo.bunuelero"></label>' +
-        '<label class="campo">Contraseña' + (crear ? ' <span class="opcional">(mínimo 8 caracteres)</span>' : '') + '<input id="f-clave" type="password" maxlength="200" autocomplete="' + (crear ? 'new-password' : 'current-password') + '"></label>' +
+        '<label class="campo">Contraseña' + (crear ? ' <span class="opcional">(mínimo 8 caracteres)</span>' : '') + '<span class="con-ojo"><input id="f-clave" type="password" maxlength="200" autocomplete="' + (crear ? 'new-password' : 'current-password') + '">' +
+          '<button type="button" id="f-ver-clave" aria-pressed="false" aria-label="Mostrar u ocultar la contraseña">Mostrar</button></span></label>' +
         (crear ? '<label class="campo">Correo <span class="opcional">(opcional)</span><input id="f-correo" type="email" maxlength="254" autocomplete="email" placeholder="Ej: tu@correo.com"></label>' +
                  '<label class="casilla"><input id="f-avisar" type="checkbox" checked> Avísame por correo cuando esté listo mi resumen</label>' : '') +
         '<p id="f-error" class="error-campo" hidden></p>' +
         '<button class="principal" type="submit">' + (crear ? 'Crear mi cuenta' : 'Entrar') + '</button></form>' +
         '<p class="sub" style="text-align:center;margin-top:12px">' + (crear
           ? 'Votar y anotar siguen sin pedir cuenta. Tus amigos solo ven tu nombre y lo que anotas. Tu correo no se le muestra a nadie. Guarda bien tu contraseña: por ahora no hay forma de recuperarla.'
-          : 'Lo que anotaste en este teléfono se suma a tu cuenta.') + '</p>' +
-        (supa ? '<button type="button" class="boton-google" style="margin-top:14px" data-accion="entrar-google" id="b-google">' + ICONO_GOOGLE + 'Entrar con Google</button>' : '');
+          : 'Lo que anotaste en este teléfono se suma a tu cuenta.') + '</p>';
       $('cuenta-form').addEventListener('submit', enviarCuenta);
+      animarOso($('cuenta-form'));
       return;
     }
     if (!yoDatos.perfil) {
@@ -1931,7 +1963,6 @@
         '<label class="campo">Tu nombre o apodo<input id="p-nombre" type="text" maxlength="30" autocomplete="nickname" placeholder="Ej: Camilo"></label>' +
         '<p id="p-error" class="error-campo" hidden></p><button class="principal" type="submit">Listo</button></form>' +
         '<div style="text-align:center;margin-top:10px"><button type="button" class="enlace" data-accion="salir">Salir</button></div>';
-      $('p-nombre').value = yoDatos.nombreSugerido || '';
       $('p-form').addEventListener('submit', guardarNombre);
       return;
     }
@@ -2073,12 +2104,7 @@
       '<p class="sub" style="margin:0 0 8px">Mándale este enlace. Cuando entre, quedan conectados los dos.</p><code class="enlace-invitacion">' + escapar(enlaceInvitacion()) + '</code>' +
       '<button type="button" class="principal" data-accion="compartir-invitacion">Compartir invitación</button>');
   }
-  async function entrarConGoogle() {
-    if (!supa) { avisar('Todavía está cargando. Intenta en un segundo.', 'error'); return; }
-    const b = $('b-google'); if (b) b.disabled = true;
-    const { error } = await supa.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } });
-    if (error) { if (b) b.disabled = false; avisar('No pudimos abrir Google. Intenta de nuevo.', 'error'); }
-  }
+
   async function guardarNombre(e) {
     e.preventDefault();
     const nombre = $('p-nombre').value.trim(), err = $('p-error');
@@ -2089,13 +2115,13 @@
       const r = await pedir('/api/perfil', { nombre, idDispositivo });
       if (!r.ok) { err.textContent = r.mensaje; err.hidden = false; b.disabled = false; return; }
       await cargarYo(); cargarDiario();
-    } catch (e2) { err.textContent = 'No pudimos guardar. Revisa tu conexión.'; err.hidden = false; b.disabled = false; }
+    } catch (err) { err.textContent = 'No pudimos guardar. Revisa tu conexión.'; err.hidden = false; b.disabled = false; }
   }
   async function compartirInvitacion() {
     const url = enlaceInvitacion();
     const texto = yoDatos.perfil.nombre + ' te invita a Apetitosos para ver qué buñuelos ha probado.';
     if (navigator.share) { try { await navigator.share({ title: 'Apetitosos', text: texto, url }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
-    try { await navigator.clipboard.writeText(url); avisar('Enlace copiado. Pégalo en WhatsApp.'); } catch (e) { avisar('Copia el enlace que aparece en el recuadro.'); }
+    try { await navigator.clipboard.writeText(url); avisar('Enlace copiado. Pégalo en WhatsApp.'); } catch { avisar('Copia el enlace que aparece en el recuadro.'); }
   }
   async function quitarAmigo(id, boton) {
     if (boton.dataset.confirmar !== '1') { boton.dataset.confirmar = '1'; boton.textContent = '¿Seguro? Toca otra vez'; return; }
@@ -2107,7 +2133,7 @@
     e.preventDefault();
     const crear = modoCuenta === 'crear';
     const err = $('f-error');
-    const error = (t) => { err.textContent = t; err.hidden = false; };
+    const error = (t) => { err.textContent = t; err.hidden = false; osoNiega(); };
     err.hidden = true;
     const datos = { usuario: $('f-usuario').value.trim(), clave: $('f-clave').value, idDispositivo };
     if (crear) {
@@ -2129,11 +2155,10 @@
       await cargarYo();
       await cargarDiario();
       if (resumenPendiente) { resumenPendiente = false; irA('perfil'); setTimeout(abrirWrapped, 300); }
-    } catch (e2) { error('No pudimos conectarnos. Revisa tu conexión e intenta de nuevo.'); b.disabled = false; b.textContent = crear ? 'Crear mi cuenta' : 'Entrar'; }
+    } catch { error('No pudimos conectarnos. Revisa tu conexión e intenta de nuevo.'); b.disabled = false; b.textContent = crear ? 'Crear mi cuenta' : 'Entrar'; }
   }
 
   async function salir() {
-    if (supa) await supa.auth.signOut().catch(() => {});
     if (tokenSesion) pedir('/api/salir', {}).catch(() => {});
     guardarLocal(CLAVE_SESION, null);
     tokenSesion = ''; eventos = null;
@@ -2218,7 +2243,7 @@
     return e;
   }
   function resumenAbierto() { return modoDemo || hoyBogota() >= CONFIG.resumenDesde; }
-  function fechaLarga(f) { const [y, m, d] = f.split('-').map(Number); return d + ' de ' + MESES_LARGOS[m - 1]; }
+  function fechaLarga(f) { const [, m, d] = f.split('-').map(Number); return d + ' de ' + MESES_LARGOS[m - 1]; }
   function abrirWrapped() {
     if (!resumenAbierto()) { avisar('Paciencia, chef. Tu resumen se sirve el ' + fechaLarga(CONFIG.resumenDesde) + '.'); return; }
     const d = datosResumen();
@@ -2248,7 +2273,7 @@
     const url = CONFIG.urlApp || '';
     try { if (navigator.share) { await navigator.share({ title: 'Mi temporada en buñuelos', text: texto, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
     const completo = texto + (url ? ' ' + url : '');
-    try { await navigator.clipboard.writeText(completo); avisar('Copiamos tu resumen. Pégalo donde quieras.'); return; } catch (e) {}
+    try { await navigator.clipboard.writeText(completo); avisar('Copiamos tu resumen. Pégalo donde quieras.'); return; } catch {}
     const area = $('w-texto-copiar'); if (area) { area.hidden = false; area.value = completo; area.focus(); area.select(); }
     avisar('Copia el texto o toma un pantallazo para compartir.');
   }
@@ -2312,7 +2337,6 @@
       case 'responder-solicitud': responderSolicitud(id, b.dataset.si === '1'); break;
       case 'agregar-amigo': irA('actividad'); setTimeout(() => $('ba-texto').focus(), 150); break;
       case 'resumen': abrirWrapped(); break;
-      case 'entrar-google': entrarConGoogle(); break;
       case 'modo-cuenta': modoCuenta = b.dataset.modo; pintarActividad(); break;
       case 'salir': salir(); break;
       case 'invitar': invitar(); break;
@@ -2346,19 +2370,19 @@
   // ---------------- Carga ----------------
   async function refrescar() {
     if (document.hidden) return;
-    try { lugares = await pedir('/api/lugares?plato=' + encodeURIComponent(CONFIG.plato)); sincronizarMarcadores(); } catch (e) {}
-    try { listas = await pedir('/api/listas'); } catch (e) {}
+    try { lugares = await pedir('/api/lugares?plato=' + encodeURIComponent(CONFIG.plato)); sincronizarMarcadores(); } catch {}
+    try { listas = await pedir('/api/listas'); } catch {}
     repintar();
   }
   async function iniciar() {
     if (!CON_SERVIDOR) { mostrarError('Esto es solo el archivo, no la app.', 'La app funciona desde su enlace de Cloudflare (el que termina en workers.dev).'); return; }
     if (!leerLocal(CLAVE_BIENVENIDA, false) && !CONFIG.demoWrapped) $('bienvenida').hidden = false;
     try { Object.assign(CONFIG, await pedir('/api/config')); }
-    catch (e) { mostrarError('No pudimos conectarnos con el servidor.', 'Revisa tu conexión a internet y recarga la página.'); return; }
+    catch { mostrarError('No pudimos conectarnos con el servidor.', 'Revisa tu conexión a internet y recarga la página.'); return; }
     const pLugares = pedir('/api/lugares?plato=' + encodeURIComponent(CONFIG.plato));
     const pListas = pedir('/api/listas').catch(() => []);
     try { lugares = await pLugares; listas = await pListas; }
-    catch (e) { mostrarError('No pudimos cargar los buñuelos.', 'Revisa tu conexión a internet y recarga la página.'); return; }
+    catch { mostrarError('No pudimos cargar los buñuelos.', 'Revisa tu conexión a internet y recarga la página.'); return; }
     $('carga').classList.add('oculta');
     repintar();
     cargarDiario();
@@ -2401,7 +2425,7 @@
       mapa.on('click', alTocarMapa);
       mapa.on('moveend', () => { if (vista === 'inicio' && subInicio === 'cerca' && !ultimaPosicion) pintarInicio(); });
       mapa.once('load', () => { calentarEstilo(); mapaListo = true; sincronizarMarcadores(); });
-    } catch (e) { avisar('No pudimos cargar el mapa.', 'error'); }
+    } catch { avisar('No pudimos cargar el mapa.', 'error'); }
   }
   iniciar();
 </script>
