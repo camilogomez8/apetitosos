@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es-CO">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Apetitosos · ¿Dónde está el mejor buñuelo de Bogotá?</title>
+<meta name="description" content="Prueba, califica y vota por el mejor buñuelo de Bogotá. Lleva tu diario y mira qué comen tus amigos.">
+<meta name="theme-color" content="#FBF6EC">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://cdn.maptiler.com/maptiler-sdk-js/v4.1.0/maptiler-sdk.css" rel="stylesheet">
+<script src="https://cdn.maptiler.com/maptiler-sdk-js/v4.1.0/maptiler-sdk.umd.min.js"></script>
+<link href="/app.css" rel="stylesheet">
+</head>
+<body>
+
+<!-- Dibujos que se reutilizan: el buñuelo y el oso -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="gMasa" cx="38%" cy="32%" r="72%">
+      <stop offset="0" stop-color="#FFEDB5"/><stop offset=".28" stop-color="#F6C258"/><stop offset=".62" stop-color="#DE9330"/>
+      <stop offset=".88" stop-color="#B56A1C"/><stop offset="1" stop-color="#8E4E12"/>
+    </radialGradient>
+    <radialGradient id="gBorde" cx="50%" cy="50%" r="50%"><stop offset=".72" stop-color="#6E360A" stop-opacity="0"/><stop offset="1" stop-color="#6E360A" stop-opacity=".45"/></radialGradient>
+    <radialGradient id="gBrillo" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/><stop offset=".5" stop-color="#FFF6DA" stop-opacity=".45"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+    <radialGradient id="gSombra" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#3B1F10" stop-opacity=".38"/><stop offset="1" stop-color="#3B1F10" stop-opacity="0"/></radialGradient>
+    <filter id="fTextura" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="2" seed="11" result="ruido"/>
+      <feColorMatrix in="ruido" type="matrix" values="0 0 0 0 .42  0 0 0 0 .2  0 0 0 0 .04  1.9 0 0 0 -.78" result="poros"/>
+      <feComposite in="poros" in2="SourceGraphic" operator="in"/>
+    </filter>
+    <symbol id="bunuelo" viewBox="0 0 100 100">
+      <ellipse cx="50" cy="91" rx="34" ry="7" fill="url(#gSombra)"/>
+      <circle cx="50" cy="50" r="40" fill="url(#gMasa)"/>
+      <circle cx="50" cy="50" r="40" fill="#000" filter="url(#fTextura)" opacity=".55"/>
+      <!-- Grietas doradas de la fritura, arriba a la derecha (sin formar "caras") -->
+      <path d="M57 18 C62 21 66 25 70 31" fill="none" stroke="#8A4A10" stroke-width="2.2" stroke-linecap="round" opacity=".38"/>
+      <path d="M58 19.6 C63 22.6 66.4 26.4 69.6 31.6" fill="none" stroke="#FFE7AE" stroke-width="1" stroke-linecap="round" opacity=".55"/>
+      <path d="M74 38 C77 43 78 47 78.5 51" fill="none" stroke="#8A4A10" stroke-width="1.8" stroke-linecap="round" opacity=".3"/>
+      <g fill="#8A4A10" opacity=".32">
+        <circle cx="66" cy="58" r="1"/><circle cx="71" cy="64" r=".8"/><circle cx="59" cy="70" r=".9"/><circle cx="48" cy="78" r=".8"/>
+        <circle cx="75" cy="55" r=".7"/><circle cx="63" cy="77" r=".7"/><circle cx="53" cy="64" r=".6"/>
+      </g>
+      <circle cx="50" cy="50" r="40" fill="url(#gBorde)"/>
+      <ellipse cx="37" cy="31" rx="15" ry="9" fill="url(#gBrillo)" transform="rotate(-28 37 31)"/>
+      <circle cx="31" cy="27" r="2.6" fill="#fff" opacity=".9"/>
+    </symbol>
+    
+    <symbol id="i-inicio" viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></symbol>
+    <symbol id="i-buscar" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></g></symbol>
+    <symbol id="i-corazon" viewBox="0 0 24 24"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" stroke-linejoin="round"/></symbol>
+    <symbol id="i-actividad" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.6 3.5-5.5 6.5-5.5s5.5 1.9 6.5 5.5"/><circle cx="17" cy="9" r="2.6"/><path d="M17 14.5c2.4 0 4 1.4 4.6 4"/></g></symbol>
+    <symbol id="i-perfil" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></g></symbol>
+    <symbol id="i-atras" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11z"/><circle cx="12" cy="10" r="2.2"/></g></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7.6" r=".6" fill="currentColor"/></g></symbol>
+    <symbol id="i-mira" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3"/></g></symbol>
+  </defs>
+</svg>
+
+<header class="barra-marca" id="barra-marca">
+  <span class="bm-lado" aria-hidden="true"></span>
+  <a class="logo-ee" href="https://www.elespectador.com/" target="_blank" rel="noopener"><img src="/img/el-espectador.webp" alt="El Espectador" width="640" height="99"></a>
+  <button type="button" class="avatar mini" id="inicio-avatar" data-accion="ir" data-vista="perfil" aria-label="Tu perfil">?</button>
+</header>
+
+<div class="app">
+  <!-- ================= INICIO ================= -->
+  <main id="v-inicio" class="vista" data-vista="inicio">
+    <header class="cabeza">
+      <span class="ciudad"><svg aria-hidden="true"><use href="#i-pin"/></svg>Bogotá</span>
+      <button type="button" class="circulo" data-accion="ubicarme" aria-label="Estoy aquí: buscar o marcar el sitio donde estoy"><svg aria-hidden="true"><use href="#i-mira"/></svg></button>
+    </header>
+    <div class="banner-temporada"><img src="/img/temporada.webp" alt="Noche de diciembre en Bogotá: el oso con gorro navideño fríe buñuelos en una calle con luces"><span class="temporada">TEMPORADA BUÑUELO · DIC</span><span class="sello-aliado" data-aliado hidden></span></div>
+    <h1 class="titulo" style="font-size:1.65rem">¿Dónde está el mejor buñuelo de Bogotá?</h1>
+    <label class="campo buscador" style="margin-top:16px"><span class="oculto-visual">Buscar un sitio</span>
+      <svg aria-hidden="true"><use href="#i-buscar"/></svg>
+      <input id="buscar-texto" type="search" placeholder="Busca un sitio o un barrio" autocomplete="off" enterkeyhint="search">
+    </label>
+    <ul class="filas" id="buscar-resultados" style="margin-top:10px"></ul>
+
+    <div class="mapa-caja" id="mapa-caja">
+      <div id="mapa" aria-label="Mapa de Bogotá con los buñuelos marcados"></div>
+      <div class="barra-mapa">
+        <button type="button" class="circulo" data-accion="mapa-cerrar" aria-label="Cerrar el mapa"><svg aria-hidden="true"><use href="#i-atras"/></svg></button>
+        <button type="button" class="boton-ubicacion" id="boton-ubicacion" data-accion="ubicarme"><svg aria-hidden="true"><use href="#i-mira"/></svg><span id="boton-ubicacion-texto">Estoy aquí</span></button>
+      </div>
+      <div id="chip-resaltado" class="chip-resaltado" role="status" hidden>
+        <span id="chip-texto"></span>
+        <button type="button" data-accion="quitar-chip" aria-label="Mostrar todos los buñuelos">×</button>
+      </div>
+      <span class="mapa-aliado" data-aliado hidden></span>
+      <p class="pista-mapa">Toca un buñuelo para votar, o toca el mapa donde está tu favorito para agregarlo.</p>
+      <button type="button" class="ver-grande" data-accion="mapa-grande">Ver mapa completo</button>
+    </div>
+
+    <div class="pastillas" style="margin-top:18px" role="tablist" aria-label="Qué ver">
+      <button type="button" class="pastilla on" role="tab" aria-selected="true" data-accion="sub-inicio" data-sub="top">Top 10</button>
+      <button type="button" class="pastilla" role="tab" aria-selected="false" data-accion="sub-inicio" data-sub="cerca">Cerca de ti</button>
+      <button type="button" class="pastilla" role="tab" aria-selected="false" data-accion="sub-inicio" data-sub="listas">Listas</button>
+    </div>
+    <section id="inicio-contenido" style="margin-top:16px" aria-live="polite"></section>
+  </main>
+
+  <!-- ================= ACTIVIDAD ================= -->
+  <main id="v-actividad" class="vista" data-vista="actividad" hidden>
+    <h1 class="titulo" style="margin-top:6px">Actividad</h1>
+    <div id="buscar-amigo" hidden>
+      <label class="campo buscador" style="margin-top:14px"><span class="oculto-visual">Buscar a un amigo por su usuario</span>
+        <svg aria-hidden="true"><use href="#i-buscar"/></svg>
+        <input id="ba-texto" type="search" placeholder="Busca a un amigo por su @usuario" autocomplete="off" autocapitalize="none" spellcheck="false" enterkeyhint="search">
+      </label>
+      <ul class="filas" id="ba-resultados" style="margin-top:10px"></ul>
+    </div>
+    <div id="actividad-contenido" style="margin-top:14px"></div>
+  </main>
+
+  <!-- ================= PERFIL ================= -->
+  <main id="v-perfil" class="vista" data-vista="perfil" hidden>
+    <div id="perfil-contenido"></div>
+  </main>
+
+  <footer class="pie">
+    <img class="pie-logo" src="/img/el-espectador.webp" alt="El Espectador" width="640" height="99">
+    <p>Apetitosos es un proyecto de El Espectador.</p>
+    <p class="pie-aliado" data-aliado-linea hidden></p>
+    <p class="pie-enlaces">
+      <a data-legal="politica" target="_blank" rel="noopener" href="https://www.elespectador.com/terminos/politica-de-tratamiento-de-datos/">Política de tratamiento de datos</a>
+      <a data-legal="terminos" target="_blank" rel="noopener" href="https://www.elespectador.com/terminos/">Términos y condiciones</a>
+      <a data-legal="contacto" target="_blank" rel="noopener" href="https://www.elespectador.com/ayuda-el-espectador/">Contacto</a>
+    </p>
+  </footer>
+</div>
+
+<nav class="nav" aria-label="Secciones">
+  <button type="button" data-accion="ir" data-vista="inicio" aria-current="page"><svg aria-hidden="true"><use href="#i-inicio"/></svg><span class="etq">Inicio</span></button>
+  <button type="button" data-accion="ir" data-vista="actividad"><svg aria-hidden="true"><use href="#i-actividad"/></svg><span class="etq">Amigos</span><span class="punto" id="punto-actividad" hidden></span></button>
+  <button type="button" data-accion="ir" data-vista="perfil"><span class="cara-nav" id="nav-cara"><svg aria-hidden="true"><use href="#i-perfil"/></svg></span><span class="etq">Perfil</span></button>
+</nav>
+
+<div id="velo" class="velo" data-accion="velo"></div>
+
+<!-- Tarjeta de un sitio -->
+<section id="hoja-lugar" class="hoja" role="dialog" aria-modal="true" aria-labelledby="l-nombre">
+  <button type="button" class="circulo cerrar" data-accion="cerrar-hojas" aria-label="Cerrar"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+  <p id="l-aviso" class="aviso-duplicado" hidden>¿Es este? Ya lo marcaron.</p>
+  <h2 id="l-nombre"></h2>
+  <p class="sub" id="l-barrio"></p>
+  <div class="foto-grande" id="l-foto"><svg class="bun" aria-hidden="true"><use href="#bunuelo"/></svg></div>
+  <div class="estadisticas">
+    <div><b id="l-votos">0</b><span>votos</span></div>
+    <div><b id="l-nota">–</b><span id="l-nota-sub">nota de la gente</span></div>
+    <div><b id="l-puesto">–</b><span>puesto</span></div>
+  </div>
+  <p id="l-listas" class="nota-linea" hidden></p>
+  <p id="l-amigos" class="nota-linea" hidden></p>
+  <p id="l-mio" class="nota-linea" hidden></p>
+  <div style="margin-top:14px"><button type="button" id="l-votar" class="principal" data-accion="votar">¡Este es el mejor!</button></div>
+  <div class="acciones">
+    <button type="button" class="secundario" data-accion="anotar-abierto">Ya lo probé</button>
+    <button type="button" class="secundario" id="l-porprobar" data-accion="porprobar-abierto" aria-pressed="false">Por probar</button>
+  </div>
+  <div class="fila entre" style="margin-top:8px">
+    <span class="sub" id="l-probados"></span>
+    <a id="l-llegar" class="llegar" target="_blank" rel="noopener" href="#">Cómo llegar</a>
+  </div>
+</section>
+
+<!-- Sitio nuevo -->
+<section id="hoja-nuevo" class="hoja" role="dialog" aria-modal="true" aria-labelledby="n-titulo">
+  <button type="button" class="circulo cerrar" data-accion="cerrar-hojas" aria-label="Cerrar"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+  <form id="form-lugar" novalidate>
+    <h2 id="n-titulo">Agrega tu buñuelo</h2>
+    <p class="sub" id="n-nota" style="margin-bottom:14px">Si el punto no quedó justo en el sitio, arrástralo en el mapa.</p>
+    <label class="campo">Nombre del sitio<input id="n-nombre" type="text" maxlength="80" autocomplete="off" placeholder="Ej: Panadería La Esquina" required></label>
+    <p id="n-error" class="error-campo" hidden></p>
+    <label class="campo">Barrio <span class="opcional">(opcional)</span><input id="n-barrio" type="text" maxlength="60" autocomplete="off" placeholder="Ej: Chapinero"></label>
+    <label class="campo">Precio del buñuelo <span class="opcional">(opcional)</span><input id="n-precio" type="text" inputmode="numeric" maxlength="7" placeholder="2.500"></label>
+    <button id="n-guardar" class="principal" type="submit">Guardar y votar</button>
+    <p class="sub" style="text-align:center;margin-top:10px">Al guardarlo, cuenta como tu primer voto.</p>
+  </form>
+</section>
+
+<!-- Anotar (pantalla completa) -->
+<section id="hoja-anotar" class="hoja completa" role="dialog" aria-modal="true" aria-labelledby="a-titulo">
+  <div class="fila entre">
+    <button type="button" class="circulo" data-accion="cerrar-hojas" aria-label="Volver"><svg aria-hidden="true"><use href="#i-atras"/></svg></button>
+    <strong id="a-titulo" style="font-weight:500;font-size:1.15rem">Anotar un buñuelo</strong>
+    <span style="width:50px"></span>
+  </div>
+  <div class="segmento" id="a-modo" style="margin-top:16px">
+    <button type="button" data-accion="modo-anotar" data-modo="probe" aria-pressed="true">Ya lo probé</button>
+    <button type="button" data-accion="modo-anotar" data-modo="porprobar" aria-pressed="false">Por probar</button>
+  </div>
+  <div id="a-sitio"></div>
+  <div id="a-formulario">
+    <p class="pregunta">¿Qué tal estaba?</p>
+    <div class="selector-cal" id="a-cal" role="group" aria-label="Puntaje de medio a 5 buñuelos"></div>
+    <div class="deslizador-cal">
+      <input type="range" id="a-cal-rango" min="0.5" max="5" step="0.5" value="0.5" aria-label="Puntaje, de medio a 5 buñuelos, de media en media">
+      <div class="marcas" aria-hidden="true"><span>½</span><span>1</span><span>1½</span><span>2</span><span>2½</span><span>3</span><span>3½</span><span>4</span><span>4½</span><span>5</span></div>
+    </div>
+    <p class="pista-cal">Cada buñuelo se puede llenar por mitades: desliza o toca su lado izquierdo para dar media nota.</p>
+    <p class="pregunta">¿Cuándo?</p>
+    <div class="pastillas" id="a-fecha"></div>
+    <div class="fila entre" style="margin-top:12px">
+      <p class="pregunta" style="margin:0">¿Volverías?</p>
+      <div class="pastillas" id="a-volveria">
+        <button type="button" class="pastilla" data-accion="volveria" data-valor="si" aria-pressed="false">Sí</button>
+        <button type="button" class="pastilla" data-accion="volveria" data-valor="no" aria-pressed="false">No</button>
+      </div>
+    </div>
+    <label class="pregunta" for="a-resena" style="display:block">Reseña <span class="sub" style="display:inline;font-weight:400">(opcional)</span></label>
+    <textarea id="a-resena" class="area" maxlength="500" placeholder="¿Crocante? ¿Mucho queso? ¿Grasoso? Cuéntales a tus amigos."></textarea>
+    <p class="contador" id="a-contador">0 / 500</p>
+  </div>
+  <p id="a-error" class="error-campo" style="margin-top:10px" hidden></p>
+  <div style="margin-top:16px"><button type="button" id="a-guardar" class="principal" data-accion="guardar-anotacion">¡Sí, chef!</button></div>
+  <div style="text-align:center;margin-top:6px"><button type="button" id="a-borrar" class="enlace peligro" data-accion="borrar-entrada" hidden>Borrar esta anotación</button></div>
+</section>
+
+<!-- Hoja para elegir algo de una lista (sitio, favorito, amigo) -->
+<section id="hoja-elegir" class="hoja" role="dialog" aria-modal="true" aria-labelledby="e-titulo">
+  <button type="button" class="circulo cerrar" data-accion="cerrar-elegir" aria-label="Cerrar"><svg aria-hidden="true"><use href="#i-x"/></svg></button>
+  <h2 id="e-titulo"></h2>
+  <div id="e-contenido" style="margin-top:12px"></div>
+</section>
+
+<div id="bienvenida" class="bienvenida" role="dialog" aria-modal="true" aria-labelledby="b-titulo" hidden>
+  <img class="foto" src="/img/panaderia.webp" alt="El oso de Apetitosos mira con antojo la vitrina de una panadería de barrio llena de buñuelos y pan">
+  <div class="texto">
+    <img class="logo-ee-bienvenida" src="/img/el-espectador.webp" alt="El Espectador" width="640" height="99">
+    <p class="marca">APETITOSOS</p>
+    <h1 id="b-titulo">¿Dónde está el mejor buñuelo de Bogotá?</h1>
+    <p class="bajada">Pruébalos, califícalos, vota por tu favorito y mira qué dicen tus amigos.</p>
+    <button type="button" class="principal" data-accion="empezar">¡Sí, chef! Empecemos</button>
+    <p class="apoyo" data-aliado-linea hidden></p>
+  </div>
+</div>
+
+<div id="wrapped" class="wrapped" role="dialog" aria-modal="true" aria-label="Tu resumen buñuelero" hidden>
+  <div id="w-progreso" class="w-progreso"></div>
+  <button id="w-cerrar" class="w-cerrar" type="button" aria-label="Cerrar resumen">×</button>
+  <button id="w-atras" class="w-zona w-atras" type="button" aria-label="Anterior"></button>
+  <button id="w-adelante" class="w-zona w-adelante" type="button" aria-label="Siguiente"></button>
+  <div id="w-escena" class="w-escena" aria-live="polite"></div>
+</div>
+
+<div id="captcha-caja" class="captcha-caja" hidden>
+  <p>Un segundo: confirmamos que eres una persona.</p>
+  <div id="captcha"></div>
+</div>
+<div id="aviso" class="aviso" role="status" aria-live="polite"></div>
+<div id="carga" class="carga">
+  <svg viewBox="0 0 100 100" aria-hidden="true"><use href="#bunuelo"/></svg>
+  <p id="carga-texto">Calentando el aceite…</p>
+  <p id="carga-detalle" class="detalle" hidden></p>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

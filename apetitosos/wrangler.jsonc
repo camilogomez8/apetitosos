@@ -1,0 +1,51 @@
+{
+  // Apetitosos · configuración de Cloudflare Workers. Ver README.md.
+  "name": "apetitosos",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+
+  // La página y las imágenes (public/) se sirven como archivos estáticos.
+  // Solo /api/* pasa por el Worker (src/index.js).
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // La base se llama "buena-muela" porque así nació el proyecto. No cambiar el nombre: es la base de producción.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "buena-muela",
+      "database_id": "1eb87b28-d43f-479e-9c4a-728439f0ca22"
+    }
+  ],
+
+  // Variables públicas: igual terminan en el navegador de cada visitante.
+  // Los secretos (IP_SALT, TURNSTILE_SECRET, RESEND_API_KEY) NO van aquí: se ponen con "wrangler secret put".
+  "vars": {
+    // Llave pública de MapTiler. Restringirla por dominio en el panel de MapTiler.
+    "MAPTILER_KEY": "Y9BEgwaP6mBwXuqudyUa",
+    // Captcha de Cloudflare Turnstile. Vacía = sin captcha.
+    "TURNSTILE_SITE_KEY": "",
+    // Correo del resumen del 31 de diciembre. Vacías = no se manda nada.
+    // URL_APP: dirección pública de la app. CORREO_DESDE: por ejemplo "Apetitosos <hola@tudominio.co>".
+    "URL_APP": "",
+    "CORREO_DESDE": "",
+    // Aliado comercial ("Con el apoyo de"): en la bienvenida, el banner de temporada, el mapa y el pie.
+    // Vacío = no aparece. Para Alpina: "ALIADO_NOMBRE": "Alpina", "ALIADO_LOGO": "/img/aliados/alpina.webp".
+    // Para verlo sin activarlo para nadie: abrir la app con ?aliado=alpina al final de la dirección.
+    "ALIADO_NOMBRE": "",
+    "ALIADO_LOGO": "",
+    "ALIADO_URL": "",
+    // Enlaces legales (pie de página y registro). Vacíos = las páginas vigentes de elespectador.com.
+    "URL_POLITICA_DATOS": "",
+    "URL_TERMINOS": "",
+    "URL_CONTACTO": ""
+  },
+
+  // Horas en UTC. "17 8 * * *": limpieza diaria (3:17 a. m. de Bogotá).
+  // "0 * 31 12 *": cada hora del 31 de diciembre revisa si hay correos del resumen por mandar.
+  "triggers": { "crons": ["17 8 * * *", "0 * 31 12 *"] },
+  "observability": { "enabled": true }
+}
