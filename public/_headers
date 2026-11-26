@@ -1,0 +1,13 @@
+# Cabeceras de seguridad para la página y los archivos estáticos (Cloudflare Workers Static Assets).
+# Las respuestas de /api/* ponen las suyas desde el Worker (src/index.js → json()).
+#
+# La Content-Security-Policy va en modo SOLO INFORME: no bloquea nada, y cada violación llega a /api/csp
+# (visible en Workers → apetitosos → Logs). Cuando pasen unos días sin informes, se cambia el nombre de la
+# cabecera a "Content-Security-Policy" para que se aplique. Si se cambia de proveedor de mapa, hay que
+# reemplazar los dominios de MapTiler.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://cdn.maptiler.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdn.maptiler.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://api.maptiler.com https://cdn.maptiler.com; connect-src 'self' https://api.maptiler.com; worker-src 'self' blob:; child-src blob:; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; report-uri /api/csp

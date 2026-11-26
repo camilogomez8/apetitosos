@@ -1,15 +1,16 @@
 /**
- * ¿Dónde está el mejor buñuelo de Bogotá? — servidor en Cloudflare Workers.
- * La página (public/index.html) se sirve sola como archivo estático.
- * Este código solo atiende las rutas /api/… y guarda todo en la base D1 (binding DB).
+ * Apetitosos · ¿Dónde está el mejor buñuelo de Bogotá? — servidor (Cloudflare Workers).
  *
- * Variables (wrangler.jsonc → vars):  MAPTILER_KEY, TURNSTILE_SITE_KEY, SUPABASE_URL, SUPABASE_ANON_KEY
- * Secretos (panel de Cloudflare → Settings → Variables and Secrets):  TURNSTILE_SECRET, IP_SALT
- * Si TURNSTILE_SECRET no está puesto, la app funciona sin captcha (útil para probar).
- * Si SUPABASE_URL no está puesto, la app funciona sin amigos (nadie ve el botón de entrar).
+ * La página (public/index.html) la sirve Cloudflare como archivo estático.
+ * Este Worker solo atiende /api/* y guarda todo en D1 (binding DB). Ver README.md.
+ *
+ * Variables (wrangler.jsonc → vars): MAPTILER_KEY, TURNSTILE_SITE_KEY, URL_APP, CORREO_DESDE, RESUMEN_DESDE
+ * Secretos (wrangler secret put …):   IP_SALT, TURNSTILE_SECRET, RESEND_API_KEY
+ * Sin TURNSTILE_SECRET no se pide captcha. Sin RESEND_API_KEY no se mandan correos.
  */
 
 const PLATO = 'buñuelo';
+const CRON_LIMPIEZA = '17 8 * * *';   // 3:17 a. m. de Bogotá
 const DISTANCIA_DUPLICADO_M = 60;
 const LIMITES_BOGOTA = { latMin: 4.44, latMax: 4.84, lngMin: -74.23, lngMax: -73.98 };
 const PRECIO_MIN = 100;
@@ -18,12 +19,18 @@ const CAL_MAX = 5;
 const ACCIONES_POR_DIA = 80;      // votos + sitios + calificaciones por conexión (IP) al día
 const SITIOS_POR_DIA = 10;        // sitios nuevos por conexión al día
 const MAX_AMIGOS = 200;
+const MAX_SOLICITUDES_RECIBIDAS = 50;
+const BUSQUEDAS_POR_DIA = 200;    // búsquedas de @usuario por cuenta al día
+const CANJES_POR_DIA = 20;        // invitaciones aceptadas por cuenta al día
+const INTENTOS_CLAVE = 5;         // intentos fallidos antes de bloquear la cuenta un rato
+const MINUTOS_BLOQUEO = 15;
 const ALFABETO_CODIGO = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // sin 0/O ni 1/I para no confundir
 
 export default {
-  // Cron del 31 de diciembre: manda el correo del resumen (ver wrangler.jsonc → triggers)
+  // Dos crons (ver wrangler.jsonc → triggers): limpieza diaria y correo del resumen el 31 de diciembre.
   async scheduled(evento, env, ctx) {
-    ctx.waitUntil(mandarCorreosResumen(env));
+    if (evento.cron === CRON_LIMPIEZA) ctx.waitUntil(limpiar(env));
+    else ctx.waitUntil(mandarCorreosResumen(env));
   },
 
   async fetch(request, env) {
@@ -37,28 +44,30 @@ export default {
         case 'GET /api/listas': return json(await obtenerListas(env));
         case 'POST /api/votar': return json(await votar(request, env));
         case 'POST /api/lugares': return json(await crearLugar(request, env));
-        case 'GET /api/diario': return json(await diario(request, env, url));
+        case 'GET /api/diario': return json(await diario(request, env));
         case 'POST /api/anotar': return json(await anotar(request, env));
         case 'POST /api/entrada/borrar': return json(await borrarEntrada(request, env));
         case 'POST /api/por-probar': return json(await porProbar(request, env));
         case 'POST /api/seguir': return json(await seguirLista(request, env));
         case 'POST /api/provocar': return json(await provocar(request, env));
         case 'GET /api/actividad': return json(await actividad(request, env));
-        case 'GET /api/yo': return json(await yo(request, env, url));
+        case 'GET /api/yo': return json(await yo(request, env));
         case 'POST /api/registro': return json(await registrar(request, env));
         case 'POST /api/entrar': return json(await entrar(request, env));
         case 'POST /api/salir': return json(await salirCuenta(request, env));
         case 'POST /api/cuenta': return json(await actualizarCuenta(request, env));
         case 'POST /api/cuatro': return json(await guardarCuatro(request, env));
+        case 'POST /api/aceptar-datos': return json(await aceptarDatos(request, env));
         case 'POST /api/avatar': return json(await guardarAvatar(request, env));
         case 'GET /api/perfil-amigo': return json(await perfilAmigo(request, env, url));
-        case 'GET /api/invitacion': return json(await verInvitacion(env, url.searchParams.get('codigo')));
+        case 'POST /api/invitacion': return json(await verInvitacion(request, env));
         case 'POST /api/perfil': return json(await guardarPerfil(request, env));
         case 'POST /api/amigos': return json(await agregarAmigo(request, env));
         case 'GET /api/buscar-amigo': return json(await buscarAmigo(request, env, url));
         case 'POST /api/solicitud': return json(await mandarSolicitud(request, env));
         case 'POST /api/solicitud/responder': return json(await responderSolicitud(request, env));
         case 'POST /api/amigos/quitar': return json(await quitarAmigo(request, env));
+        case 'POST /api/csp': return await reporteCsp(request);
         default: return json({ ok: false, mensaje: 'Ruta desconocida.' }, 404);
       }
     } catch (e) {
@@ -77,27 +86,38 @@ function config(env) {
     plato: PLATO,
     limites: LIMITES_BOGOTA,
     distanciaDuplicado: DISTANCIA_DUPLICADO_M,
-    // La llave "anon" de Supabase es pública por diseño: sirve solo para abrir la puerta de entrar con Google.
-    supabaseUrl: env.SUPABASE_URL || '',
-    supabaseAnonKey: env.SUPABASE_ANON_KEY || '',
-    resumenDesde: /^\d{4}-\d{2}-\d{2}$/.test(env.RESUMEN_DESDE || '') ? env.RESUMEN_DESDE : '2026-12-31'
+    resumenDesde: /^\d{4}-\d{2}-\d{2}$/.test(env.RESUMEN_DESDE || '') ? env.RESUMEN_DESDE : '2026-12-31',
+    // Aliado comercial ("Con el apoyo de"). Sin ALIADO_NOMBRE no se muestra nada.
+    aliado: env.ALIADO_NOMBRE ? { nombre: env.ALIADO_NOMBRE, logo: env.ALIADO_LOGO || '', url: urlSegura(env.ALIADO_URL) } : null,
+    // Enlaces legales del pie de página y del registro
+    legal: {
+      politica: urlSegura(env.URL_POLITICA_DATOS) || 'https://www.elespectador.com/terminos/politica-de-tratamiento-de-datos/',
+      terminos: urlSegura(env.URL_TERMINOS) || 'https://www.elespectador.com/terminos/',
+      contacto: urlSegura(env.URL_CONTACTO) || 'https://www.elespectador.com/ayuda-el-espectador/'
+    }
   };
+}
+
+/** Solo direcciones https (o mailto) para los enlaces que salen de la configuración. */
+function urlSegura(u) {
+  const t = String(u || '').trim();
+  return /^(https:\/\/|mailto:)[^\s"'<>]+$/.test(t) ? t : '';
 }
 
 // ====================== LECTURA ======================
 
 async function obtenerLugares(env, plato) {
-  // nota = promedio de la última calificación de cada teléfono
+  // nota = promedio de la última calificación de cada persona
   const { results } = await env.DB.prepare(
-    "SELECT l.id, l.nombre, l.lat, l.lng, l.barrio, l.precio, l.creado, l.votos, l.probados, n.nota FROM lugares l " +
-    "LEFT JOIN (SELECT id_lugar, ROUND(AVG(cal), 1) AS nota FROM entradas e WHERE creado = (SELECT MAX(creado) FROM entradas x WHERE x.id_lugar = e.id_lugar AND x.id_dispositivo = e.id_dispositivo) GROUP BY id_lugar) n ON n.id_lugar = l.id " +
+    "SELECT l.id, l.nombre, l.lat, l.lng, l.barrio, l.precio, l.creado, l.votos, l.probados, n.nota, n.opiniones FROM lugares l " +
+    "LEFT JOIN (SELECT id_lugar, ROUND(AVG(cal), 1) AS nota, COUNT(*) AS opiniones FROM (SELECT id_lugar, cal, ROW_NUMBER() OVER (PARTITION BY id_lugar, COALESCE(id_perfil, id_dispositivo) ORDER BY creado DESC, rowid DESC) AS n FROM entradas) WHERE n = 1 GROUP BY id_lugar) n ON n.id_lugar = l.id " +
     "WHERE l.plato = ? AND l.estado = 'visible'"
   ).bind(plato).all();
   return results.map(aLugar);
 }
 
 async function obtenerListas(env) {
-  const { results } = await env.DB.prepare('SELECT * FROM listas ORDER BY orden').all();
+  const { results } = await env.DB.prepare("SELECT * FROM listas WHERE estado IN ('publicada', 'proximamente') ORDER BY orden LIMIT 100").all();
   return results
     .filter((f) => f.id && f.titulo)
     .map((f) => ({
@@ -124,15 +144,16 @@ function aLugar(f) {
     creado: Date.parse(f.creado) || 0,
     votos: Number(f.votos) || 0,
     probados: Number(f.probados) || 0,
-    nota: f.nota === null || f.nota === undefined ? null : Number(f.nota)
+    nota: f.nota === null || f.nota === undefined ? null : Number(f.nota),
+    opiniones: Number(f.opiniones) || 0     // personas que lo calificaron (cuenta su última calificación)
   };
 }
 
 async function lugarPorId(env, id) {
   const f = await env.DB.prepare(
-    "SELECT id, nombre, lat, lng, barrio, precio, creado, votos, probados, " +
-    "(SELECT ROUND(AVG(cal), 1) FROM entradas e WHERE e.id_lugar = lugares.id AND e.creado = (SELECT MAX(creado) FROM entradas x WHERE x.id_lugar = e.id_lugar AND x.id_dispositivo = e.id_dispositivo)) AS nota " +
-    "FROM lugares WHERE id = ? AND estado = 'visible'"
+    "SELECT l.id, l.nombre, l.lat, l.lng, l.barrio, l.precio, l.creado, l.votos, l.probados, n.nota, n.opiniones FROM lugares l " +
+    "LEFT JOIN (SELECT id_lugar, ROUND(AVG(cal), 1) AS nota, COUNT(*) AS opiniones FROM (SELECT id_lugar, cal, ROW_NUMBER() OVER (PARTITION BY id_lugar, COALESCE(id_perfil, id_dispositivo) ORDER BY creado DESC, rowid DESC) AS n FROM entradas WHERE id_lugar = ?1) WHERE n = 1 GROUP BY id_lugar) n ON n.id_lugar = l.id " +
+    "WHERE l.id = ?1 AND l.estado = 'visible'"
   ).bind(id).first();
   return f ? aLugar(f) : null;
 }
@@ -145,6 +166,8 @@ async function votar(request, env) {
   const idDispositivo = cuerpo.idDispositivo;
   if (!idLugar) return { ok: false, mensaje: 'No encontramos ese sitio. Recarga la página e intenta de nuevo.' };
   if (!dispositivoValido(idDispositivo)) return { ok: false, mensaje: 'No pudimos identificar tu dispositivo. Recarga la página.' };
+  const perfil = await perfilDeSolicitud(request, env);
+  if (!perfil) return SIN_SESION('votar');
 
   const control = await controlar(request, env, cuerpo.token, false);
   if (!control.ok) return control;
@@ -152,16 +175,13 @@ async function votar(request, env) {
   const lugar = await lugarPorId(env, idLugar);
   if (!lugar) return { ok: false, mensaje: 'Ese sitio ya no está en el mapa.' };
 
-  // Con cuenta: un voto por persona y por sitio, sin importar desde cuántos teléfonos entre.
-  const { ids, perfil } = await dispositivosDe(request, env, idDispositivo);
-  const yaVoto = perfil
-    ? await env.DB.prepare('SELECT 1 FROM votos WHERE id_lugar = ? AND (id_perfil = ? OR id_dispositivo IN (' + marcas(ids.length) + ')) LIMIT 1').bind(idLugar, perfil.id, ...ids).first()
-    : null;
-  if (yaVoto) return { ok: false, yaVoto: true, lugar, mensaje: 'Ya votaste por este sitio.' };
-
+  // Un voto por persona y por sitio, sin importar desde cuántos teléfonos entre.
+  if (await env.DB.prepare('SELECT 1 FROM votos WHERE id_lugar = ? AND id_perfil = ? LIMIT 1').bind(idLugar, perfil.id).first()) {
+    return { ok: false, yaVoto: true, lugar, mensaje: 'Ya votaste por este sitio.' };
+  }
   const r = await env.DB.prepare(
     'INSERT OR IGNORE INTO votos (id_lugar, plato, fecha, id_dispositivo, ip_hash, id_perfil) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(idLugar, PLATO, ahora(), idDispositivo, control.ipHash, perfil ? perfil.id : null).run();
+  ).bind(idLugar, PLATO, ahora(), idDispositivo, control.ipHash, perfil.id).run();
 
   if (!r.meta.changes) return { ok: false, yaVoto: true, lugar, mensaje: 'Ya votaste por este sitio desde este teléfono.' };
 
@@ -186,9 +206,14 @@ async function crearLugar(request, env) {
   if (!nombre) return { ok: false, mensaje: 'Escribe el nombre del sitio.' };
   if (!dentroDeBogota(lat, lng)) return { ok: false, mensaje: 'Ese punto queda por fuera de Bogotá. Marca un sitio dentro de la ciudad.' };
   if (precio === undefined) return { ok: false, mensaje: 'Escribe el precio solo con números, por ejemplo 2500. O déjalo vacío.' };
+  const perfil = await perfilDeSolicitud(request, env);
+  if (!perfil) return SIN_SESION('agregar sitios');
 
   const control = await controlar(request, env, cuerpo.token, true);
   if (!control.ok) return control;
+  const hoy = await env.DB.prepare("SELECT COUNT(*) AS n FROM votos v JOIN lugares l ON l.id = v.id_lugar AND l.creador = v.id_dispositivo WHERE v.id_perfil = ? AND substr(v.fecha, 1, 10) = ?")
+    .bind(perfil.id, ahora().slice(0, 10)).first();
+  if (hoy && hoy.n >= SITIOS_POR_DIA) return { ok: false, mensaje: 'Ya marcaste muchos sitios hoy. Vuelve mañana para agregar más.' };
 
   // Regla de los 60 metros: se buscan sitios en una cajita alrededor del punto (0,001° ≈ 110 m).
   const { results } = await env.DB.prepare(
@@ -211,8 +236,8 @@ async function crearLugar(request, env) {
     ).bind(id, nombre, lat, lng, barrio, precio, PLATO, fecha, idDispositivo),
     // El registro cuenta como primer voto.
     env.DB.prepare(
-      'INSERT INTO votos (id_lugar, plato, fecha, id_dispositivo, ip_hash) VALUES (?, ?, ?, ?, ?)'
-    ).bind(id, PLATO, fecha, idDispositivo, control.ipHash)
+      'INSERT INTO votos (id_lugar, plato, fecha, id_dispositivo, ip_hash, id_perfil) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(id, PLATO, fecha, idDispositivo, control.ipHash, perfil.id)
   ]);
 
   return {
@@ -223,24 +248,17 @@ async function crearLugar(request, env) {
 
 // ====================== DIARIO ======================
 // Cada vez que alguien come en un sitio queda una entrada con fecha, puntaje (de media en media),
-// "¿volverías?" y una reseña opcional. Sin cuenta, el diario es del teléfono. Con cuenta, junta todos sus teléfonos.
+// "¿volverías?" y una reseña opcional. Todo lo que se escribe exige cuenta y queda guardado con su id_perfil:
+// el teléfono (id_dispositivo) ya no sirve como llave para leer ni para tocar el diario de nadie.
 
 const RESENA_MAX = 500;
+const SIN_SESION = (para) => ({ ok: false, sesion: true, mensaje: 'Entra a tu cuenta para ' + para + '.' });
 
-/** Teléfonos cuyo diario puede ver y tocar quien hace la petición. */
-async function dispositivosDe(request, env, idDispositivo) {
-  const propios = dispositivoValido(idDispositivo) ? [idDispositivo] : [];
+/** Perfil de quien hace la petición, o null si no tiene sesión. */
+async function perfilDeSolicitud(request, env) {
   const usuario = await usuarioDe(request, env);
-  if (!usuario) return { ids: propios, perfil: null };
-  const perfil = await perfilDe(env, usuario.id);
-  if (!perfil) return { ids: propios, perfil: null };
-  if (propios.length) await unirDispositivo(env, perfil.id, idDispositivo);
-  const { results } = await env.DB.prepare('SELECT id_dispositivo FROM perfil_dispositivos WHERE id_perfil = ?').bind(perfil.id).all();
-  const ids = new Set(propios);
-  results.forEach((f) => ids.add(f.id_dispositivo));
-  return { ids: Array.from(ids).slice(0, 20), perfil };
+  return usuario ? perfilDe(env, usuario.id) : null;
 }
-const marcas = (n) => new Array(n).fill('?').join(',');
 
 function aEntrada(f) {
   return {
@@ -250,21 +268,19 @@ function aEntrada(f) {
   };
 }
 
-async function diario(request, env, url) {
-  const { ids, perfil } = await dispositivosDe(request, env, url.searchParams.get('d'));
-  if (!ids.length) return { ok: false, mensaje: 'No pudimos identificar tu dispositivo. Recarga la página.' };
-  const q = marcas(ids.length);
-  const [e, p, s] = await env.DB.batch([
-    env.DB.prepare('SELECT e.*, (SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas FROM entradas e WHERE id_dispositivo IN (' + q + ') ORDER BY fecha DESC, creado DESC LIMIT 1000').bind(...ids),
-    env.DB.prepare('SELECT id_lugar, MAX(fecha) AS fecha FROM por_probar WHERE id_dispositivo IN (' + q + ') GROUP BY id_lugar ORDER BY fecha DESC').bind(...ids),
-    env.DB.prepare('SELECT DISTINCT id_lista FROM seguimientos WHERE id_dispositivo IN (' + q + ')').bind(...ids)
+async function diario(request, env) {
+  const perfil = await perfilDeSolicitud(request, env);
+  if (!perfil) return { ok: false, sesion: true };
+  const [e, p, s, v] = await env.DB.batch([
+    env.DB.prepare('SELECT e.*, (SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas FROM entradas e WHERE id_perfil = ? ORDER BY fecha DESC, creado DESC LIMIT 1000').bind(perfil.id),
+    env.DB.prepare('SELECT id_lugar, MAX(fecha) AS fecha FROM por_probar WHERE id_perfil = ? GROUP BY id_lugar ORDER BY fecha DESC LIMIT 500').bind(perfil.id),
+    env.DB.prepare('SELECT DISTINCT id_lista FROM seguimientos WHERE id_perfil = ? LIMIT 200').bind(perfil.id),
+    env.DB.prepare('SELECT DISTINCT id_lugar FROM votos WHERE id_perfil = ? LIMIT 1000').bind(perfil.id)
   ]);
-  const v = await env.DB.prepare('SELECT DISTINCT id_lugar FROM votos WHERE id_dispositivo IN (' + q + ')' + (perfil ? ' OR id_perfil = ?' : ''))
-    .bind(...ids, ...(perfil ? [perfil.id] : [])).all();
   return {
     ok: true,
     votados: v.results.map((f) => f.id_lugar),
-    cuatro: perfil ? leerCuatro(perfil.cuatro) : null,
+    cuatro: leerCuatro(perfil.cuatro),
     entradas: e.results.map(aEntrada),
     porProbar: p.results.map((f) => ({ idLugar: f.id_lugar, fecha: Date.parse(f.fecha) || 0 })),
     seguidas: s.results.map((f) => f.id_lista)
@@ -289,6 +305,8 @@ async function anotar(request, env) {
   if (!idLugar) return { ok: false, mensaje: 'Elige el sitio.' };
   if (!(cal >= 0.5 && cal <= CAL_MAX && Number.isInteger(cal * 2))) return { ok: false, mensaje: 'Elige qué tal estaba, de medio a 5 buñuelos.' };
   if (!fechaValida(fecha)) return { ok: false, mensaje: 'Revisa la fecha: no puede ser en el futuro.' };
+  const perfil = await perfilDeSolicitud(request, env);
+  if (!perfil) return SIN_SESION('anotar tus buñuelos');
 
   const control = await controlar(request, env, null, false, true);
   if (!control.ok) return control;
@@ -297,23 +315,22 @@ async function anotar(request, env) {
 
   // Editar una entrada que ya existe
   if (cuerpo.id) {
-    const { ids } = await dispositivosDe(request, env, idDispositivo);
     const id = limpiarTexto(cuerpo.id, 40);
-    const r = await env.DB.prepare('UPDATE entradas SET fecha = ?, cal = ?, volveria = ?, resena = ? WHERE id = ? AND id_lugar = ? AND id_dispositivo IN (' + marcas(ids.length) + ')')
-      .bind(fecha, cal, volveria, resena || null, id, idLugar, ...ids).run();
+    const r = await env.DB.prepare('UPDATE entradas SET fecha = ?, cal = ?, volveria = ?, resena = ? WHERE id = ? AND id_lugar = ? AND id_perfil = ?')
+      .bind(fecha, cal, volveria, resena || null, id, idLugar, perfil.id).run();
     if (!r.meta.changes) return { ok: false, mensaje: 'No encontramos esa anotación.' };
     const f = await env.DB.prepare('SELECT e.*, (SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas FROM entradas e WHERE id = ?').bind(id).first();
     return { ok: true, nueva: false, entrada: aEntrada(f), lugar: await lugarPorId(env, idLugar) };
   }
 
-  const yaHabia = await env.DB.prepare('SELECT 1 FROM entradas WHERE id_lugar = ? AND id_dispositivo = ? LIMIT 1').bind(idLugar, idDispositivo).first();
+  const yaHabia = await env.DB.prepare('SELECT 1 FROM entradas WHERE id_lugar = ? AND id_perfil = ? LIMIT 1').bind(idLugar, perfil.id).first();
   const id = 'E-' + crypto.randomUUID().replace(/-/g, '').slice(0, 12);
   const creado = ahora();
   const ops = [
-    env.DB.prepare('INSERT INTO entradas (id, id_lugar, plato, id_dispositivo, fecha, cal, volveria, resena, creado, ip_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-      .bind(id, idLugar, PLATO, idDispositivo, fecha, cal, volveria, resena || null, creado, control.ipHash),
+    env.DB.prepare('INSERT INTO entradas (id, id_lugar, plato, id_dispositivo, fecha, cal, volveria, resena, creado, ip_hash, id_perfil) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, idLugar, PLATO, idDispositivo, fecha, cal, volveria, resena || null, creado, control.ipHash, perfil.id),
     // Si estaba en "Por probar", ya no
-    env.DB.prepare('DELETE FROM por_probar WHERE id_dispositivo = ? AND id_lugar = ?').bind(idDispositivo, idLugar)
+    env.DB.prepare('DELETE FROM por_probar WHERE id_perfil = ? AND id_lugar = ?').bind(perfil.id, idLugar)
   ];
   if (!yaHabia) ops.push(env.DB.prepare('UPDATE lugares SET probados = probados + 1 WHERE id = ?').bind(idLugar));
   await env.DB.batch(ops);
@@ -326,16 +343,16 @@ async function anotar(request, env) {
 
 async function borrarEntrada(request, env) {
   const cuerpo = await leerCuerpo(request);
-  const { ids } = await dispositivosDe(request, env, cuerpo.idDispositivo);
-  if (!ids.length) return { ok: false, mensaje: 'No pudimos identificar tu dispositivo.' };
+  const perfil = await perfilDeSolicitud(request, env);
+  if (!perfil) return SIN_SESION('borrar anotaciones');
   const id = limpiarTexto(cuerpo.id, 40);
-  const f = await env.DB.prepare('SELECT id_lugar, id_dispositivo FROM entradas WHERE id = ? AND id_dispositivo IN (' + marcas(ids.length) + ')').bind(id, ...ids).first();
+  const f = await env.DB.prepare('SELECT id_lugar FROM entradas WHERE id = ? AND id_perfil = ?').bind(id, perfil.id).first();
   if (!f) return { ok: false, mensaje: 'No encontramos esa anotación.' };
   await env.DB.batch([
     env.DB.prepare('DELETE FROM entradas WHERE id = ?').bind(id),
     env.DB.prepare('DELETE FROM provocas WHERE id_entrada = ?').bind(id)
   ]);
-  const quedan = await env.DB.prepare('SELECT 1 FROM entradas WHERE id_lugar = ? AND id_dispositivo = ? LIMIT 1').bind(f.id_lugar, f.id_dispositivo).first();
+  const quedan = await env.DB.prepare('SELECT 1 FROM entradas WHERE id_lugar = ? AND id_perfil = ? LIMIT 1').bind(f.id_lugar, perfil.id).first();
   if (!quedan) await env.DB.prepare('UPDATE lugares SET probados = MAX(probados - 1, 0) WHERE id = ?').bind(f.id_lugar).run();
   return { ok: true, lugar: await lugarPorId(env, f.id_lugar) };
 }
@@ -344,17 +361,20 @@ async function porProbar(request, env) {
   const cuerpo = await leerCuerpo(request);
   const idDispositivo = cuerpo.idDispositivo;
   const idLugar = limpiarTexto(cuerpo.idLugar, 40);
-  if (!dispositivoValido(idDispositivo)) return { ok: false, mensaje: 'No pudimos identificar tu dispositivo. Recarga la página.' };
+  if (!dispositivoValido(idDispositivo) || !idLugar) return { ok: false, mensaje: 'No pudimos guardar eso. Recarga la página.' };
+  const perfil = await perfilDeSolicitud(request, env);
+  if (!perfil) return SIN_SESION('guardar sitios en Por probar');
   if (cuerpo.quitar) {
-    const { ids } = await dispositivosDe(request, env, idDispositivo);
-    await env.DB.prepare('DELETE FROM por_probar WHERE id_lugar = ? AND id_dispositivo IN (' + marcas(ids.length) + ')').bind(idLugar, ...ids).run();
+    await env.DB.prepare('DELETE FROM por_probar WHERE id_lugar = ? AND id_perfil = ?').bind(idLugar, perfil.id).run();
     return { ok: true };
   }
   const control = await controlar(request, env, null, false, true);
   if (!control.ok) return control;
   if (!(await lugarPorId(env, idLugar))) return { ok: false, mensaje: 'Ese sitio ya no está en el mapa.' };
-  await env.DB.prepare('INSERT OR IGNORE INTO por_probar (id_dispositivo, id_lugar, plato, fecha) VALUES (?, ?, ?, ?)')
-    .bind(idDispositivo, idLugar, PLATO, ahora()).run();
+  if (!(await env.DB.prepare('SELECT 1 FROM por_probar WHERE id_lugar = ? AND id_perfil = ?').bind(idLugar, perfil.id).first())) {
+    await env.DB.prepare('INSERT OR IGNORE INTO por_probar (id_dispositivo, id_lugar, plato, fecha, id_perfil) VALUES (?, ?, ?, ?, ?)')
+      .bind(idDispositivo, idLugar, PLATO, ahora(), perfil.id).run();
+  }
   return { ok: true };
 }
 
@@ -363,14 +383,17 @@ async function seguirLista(request, env) {
   const idDispositivo = cuerpo.idDispositivo;
   const idLista = limpiarTexto(cuerpo.idLista, 60);
   if (!dispositivoValido(idDispositivo) || !idLista) return { ok: false, mensaje: 'No pudimos guardar eso.' };
+  const perfil = await perfilDeSolicitud(request, env);
+  if (!perfil) return SIN_SESION('seguir listas');
   if (cuerpo.quitar) {
-    const { ids } = await dispositivosDe(request, env, idDispositivo);
-    await env.DB.prepare('DELETE FROM seguimientos WHERE id_lista = ? AND id_dispositivo IN (' + marcas(ids.length) + ')').bind(idLista, ...ids).run();
+    await env.DB.prepare('DELETE FROM seguimientos WHERE id_lista = ? AND id_perfil = ?').bind(idLista, perfil.id).run();
     return { ok: true };
   }
   const control = await controlar(request, env, null, false, true);
   if (!control.ok) return control;
-  await env.DB.prepare('INSERT OR IGNORE INTO seguimientos (id_dispositivo, id_lista, fecha) VALUES (?, ?, ?)').bind(idDispositivo, idLista, ahora()).run();
+  if (!(await env.DB.prepare('SELECT 1 FROM seguimientos WHERE id_lista = ? AND id_perfil = ?').bind(idLista, perfil.id).first())) {
+    await env.DB.prepare('INSERT OR IGNORE INTO seguimientos (id_dispositivo, id_lista, fecha, id_perfil) VALUES (?, ?, ?, ?)').bind(idDispositivo, idLista, ahora(), perfil.id).run();
+  }
   return { ok: true };
 }
 
@@ -382,8 +405,8 @@ async function provocar(request, env) {
   if (!perfil) return { ok: false, sinPerfil: true, mensaje: 'Primero elige tu nombre.' };
   const cuerpo = await leerCuerpo(request);
   const id = limpiarTexto(cuerpo.idEntrada, 40);
-  const dueno = await env.DB.prepare('SELECT pd.id_perfil FROM entradas e JOIN perfil_dispositivos pd ON pd.id_dispositivo = e.id_dispositivo WHERE e.id = ?').bind(id).first();
-  if (!dueno) return { ok: false, mensaje: 'Esa anotación ya no existe.' };
+  const dueno = await env.DB.prepare('SELECT id_perfil FROM entradas WHERE id = ?').bind(id).first();
+  if (!dueno || !dueno.id_perfil) return { ok: false, mensaje: 'Esa anotación ya no existe.' };
   if (dueno.id_perfil === perfil.id) return { ok: false, mensaje: 'Es tu propia reseña.' };
   const amigos = await env.DB.prepare('SELECT 1 FROM amistades WHERE a = ? AND b = ?').bind(perfil.id, dueno.id_perfil).first();
   if (!amigos) return { ok: false, mensaje: 'Solo puedes darle "me provoca" a tus amigos.' };
@@ -405,12 +428,12 @@ async function actividad(request, env) {
       'SELECT e.*, pf.id AS id_perfil, pf.nombre, pf.avatar, ' +
       '(SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas, ' +
       '(SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id AND v.id_perfil = ?1) AS mio ' +
-      'FROM entradas e JOIN perfil_dispositivos pd ON pd.id_dispositivo = e.id_dispositivo JOIN perfiles pf ON pf.id = pd.id_perfil ' +
-      'WHERE (pd.id_perfil = ?1 OR pd.id_perfil IN (SELECT b FROM amistades WHERE a = ?1)) AND e.creado >= ?2 ORDER BY e.creado DESC LIMIT 60'
+      'FROM entradas e JOIN perfiles pf ON pf.id = e.id_perfil ' +
+      'WHERE (e.id_perfil = ?1 OR e.id_perfil IN (SELECT b FROM amistades WHERE a = ?1)) AND e.creado >= ?2 ORDER BY e.creado DESC LIMIT 60'
     ).bind(perfil.id, desde),
     env.DB.prepare(
-      'SELECT pp.id_lugar, pp.fecha, pf.id AS id_perfil, pf.nombre, pf.avatar FROM por_probar pp JOIN perfil_dispositivos pd ON pd.id_dispositivo = pp.id_dispositivo JOIN perfiles pf ON pf.id = pd.id_perfil ' +
-      'WHERE pd.id_perfil IN (SELECT b FROM amistades WHERE a = ?1) AND pp.fecha >= ?2 ORDER BY pp.fecha DESC LIMIT 30'
+      'SELECT pp.id_lugar, pp.fecha, pf.id AS id_perfil, pf.nombre, pf.avatar FROM por_probar pp JOIN perfiles pf ON pf.id = pp.id_perfil ' +
+      'WHERE pp.id_perfil IN (SELECT b FROM amistades WHERE a = ?1) AND pp.fecha >= ?2 ORDER BY pp.fecha DESC LIMIT 30'
     ).bind(perfil.id, desde)
   ]);
   const eventos = e.results.map((f) => Object.assign(aEntrada(f), {
@@ -454,7 +477,7 @@ async function nuevaSesion(env, idPerfil) {
 async function usuarioDeSesionPropia(env, token) {
   const f = await env.DB.prepare('SELECT id_perfil, vence FROM sesiones WHERE token_hash = ?').bind(await hash(token)).first();
   if (!f || Date.parse(f.vence) < Date.now()) return null;
-  return { id: f.id_perfil, nombreGoogle: '' };
+  return { id: f.id_perfil };
 }
 function limpiarUsuario(u) { return String(u || '').trim().toLowerCase().replace(/^@/, ''); }
 function correoValido(c) { return /^[^\s@]{1,64}@[^\s@]{1,190}\.[a-z]{2,}$/i.test(c); }
@@ -470,8 +493,11 @@ async function registrar(request, env) {
   if (clave.length < 8) return { ok: false, campo: 'clave', mensaje: 'La contraseña debe tener al menos 8 caracteres.' };
   if (clave.length > 200) return { ok: false, campo: 'clave', mensaje: 'Esa contraseña es demasiado larga.' };
   if (correo && !correoValido(correo)) return { ok: false, campo: 'correo', mensaje: 'Revisa el correo: parece que le falta algo.' };
+  // Ley 1581 de 2012: la autorización para tratar datos personales tiene que ser previa y expresa.
+  if (cuerpo.acepta !== true) return { ok: false, campo: 'acepta', mensaje: 'Para crear tu cuenta tienes que aceptar la política de tratamiento de datos.' };
 
-  const control = await controlar(request, env, null, false, true);
+  // Con TURNSTILE_SECRET puesto, crear cuenta pide captcha. Siempre cuenta para el tope diario por conexión.
+  const control = await controlar(request, env, cuerpo.token, false, false);
   if (!control.ok) return control;
   if (await env.DB.prepare('SELECT 1 FROM cuentas WHERE usuario = ?').bind(usuario).first()) {
     return { ok: false, campo: 'usuario', mensaje: 'Ese usuario ya existe. Prueba con otro.' };
@@ -484,14 +510,14 @@ async function registrar(request, env) {
   try {
     await env.DB.batch([
       env.DB.prepare('INSERT INTO perfiles (id, nombre, color, codigo, creado) VALUES (?, ?, ?, ?, ?)').bind(idPerfil, nombre, 'dorado', codigo, creado),
-      env.DB.prepare('INSERT INTO cuentas (id_perfil, usuario, clave_hash, sal, correo, avisar, creado) VALUES (?, ?, ?, ?, ?, ?, ?)')
-        .bind(idPerfil, usuario, await huellaClave(clave, sal), sal, correo || null, correo && cuerpo.avisar ? 1 : 0, creado)
+      env.DB.prepare('INSERT INTO cuentas (id_perfil, usuario, clave_hash, sal, correo, avisar, creado, acepto_datos) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .bind(idPerfil, usuario, await huellaClave(clave, sal), sal, correo || null, correo && cuerpo.avisar ? 1 : 0, creado, creado)
     ]);
-  } catch (e) {
+  } catch {
     return { ok: false, campo: 'usuario', mensaje: 'Ese usuario ya existe. Prueba con otro.' };
   }
-  await unirDispositivo(env, idPerfil, cuerpo.idDispositivo);
-  return { ok: true, token: await nuevaSesion(env, idPerfil), perfil: await perfilDe(env, idPerfil) };
+  const reclamo = await reclamarDispositivo(env, idPerfil, cuerpo.idDispositivo);
+  return { ok: true, token: await nuevaSesion(env, idPerfil), perfil: await perfilDe(env, idPerfil), dispositivoAjeno: reclamo.ajeno };
 }
 
 async function entrar(request, env) {
@@ -499,14 +525,27 @@ async function entrar(request, env) {
   const usuario = limpiarUsuario(cuerpo.usuario);
   const clave = String(cuerpo.clave || '').slice(0, 200);
   if (!usuario || !clave) return { ok: false, mensaje: 'Escribe tu usuario y tu contraseña.' };
-  // cada intento cuenta para el tope diario: así nadie puede adivinar contraseñas a la fuerza
-  const control = await controlar(request, env, null, false, true);
+  // Cada intento cuenta para el tope diario por conexión y, con TURNSTILE_SECRET, pide captcha.
+  const control = await controlar(request, env, cuerpo.token, false, false);
   if (!control.ok) return control;
-  const c = await env.DB.prepare('SELECT id_perfil, clave_hash, sal FROM cuentas WHERE usuario = ?').bind(usuario).first();
+  const c = await env.DB.prepare('SELECT id_perfil, clave_hash, sal, intentos, bloqueo_hasta FROM cuentas WHERE usuario = ?').bind(usuario).first();
+  // Bloqueo por cuenta: tras INTENTOS_CLAVE fallos seguidos, la cuenta no acepta contraseñas por MINUTOS_BLOQUEO.
+  if (c && c.bloqueo_hasta && Date.parse(c.bloqueo_hasta) > Date.now()) {
+    return { ok: false, bloqueada: true, mensaje: 'Hubo demasiados intentos con esta cuenta. Espera ' + MINUTOS_BLOQUEO + ' minutos e intenta de nuevo.' };
+  }
   const huella = await huellaClave(clave, c ? c.sal : 'sin-cuenta');
-  if (!c || !igualesSeguro(huella, c.clave_hash)) return { ok: false, mensaje: 'El usuario o la contraseña no coinciden.' };
-  await unirDispositivo(env, c.id_perfil, cuerpo.idDispositivo);
-  return { ok: true, token: await nuevaSesion(env, c.id_perfil), perfil: await perfilDe(env, c.id_perfil) };
+  if (!c || !igualesSeguro(huella, c.clave_hash)) {
+    if (c) {
+      const fallos = (Number(c.intentos) || 0) + 1;
+      const bloquear = fallos >= INTENTOS_CLAVE;
+      await env.DB.prepare('UPDATE cuentas SET intentos = ?, bloqueo_hasta = ? WHERE id_perfil = ?')
+        .bind(bloquear ? 0 : fallos, bloquear ? new Date(Date.now() + MINUTOS_BLOQUEO * 60000).toISOString() : null, c.id_perfil).run();
+    }
+    return { ok: false, mensaje: 'El usuario o la contraseña no coinciden.' };
+  }
+  if (c.intentos || c.bloqueo_hasta) await env.DB.prepare('UPDATE cuentas SET intentos = 0, bloqueo_hasta = NULL WHERE id_perfil = ?').bind(c.id_perfil).run();
+  const reclamo = await reclamarDispositivo(env, c.id_perfil, cuerpo.idDispositivo);
+  return { ok: true, token: await nuevaSesion(env, c.id_perfil), perfil: await perfilDe(env, c.id_perfil), dispositivoAjeno: reclamo.ajeno };
 }
 
 async function salirCuenta(request, env) {
@@ -531,6 +570,14 @@ async function actualizarCuenta(request, env) {
 }
 
 // ====================== PERFIL DE UN AMIGO Y "MIS CUATRO" ======================
+
+/** Cuentas creadas antes de la casilla de datos: aceptan la política una vez y queda la fecha. */
+async function aceptarDatos(request, env) {
+  const usuario = await usuarioDe(request, env);
+  if (!usuario) return { ok: false, sesion: true, mensaje: 'Tu sesión se cerró. Entra otra vez.' };
+  await env.DB.prepare('UPDATE cuentas SET acepto_datos = ? WHERE id_perfil = ? AND acepto_datos IS NULL').bind(ahora(), usuario.id).run();
+  return { ok: true };
+}
 
 async function guardarAvatar(request, env) {
   const usuario = await usuarioDe(request, env);
@@ -564,9 +611,9 @@ async function perfilAmigo(request, env, url) {
     env.DB.prepare(
       'SELECT e.*, (SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id) AS provocas, ' +
       '(SELECT COUNT(*) FROM provocas v WHERE v.id_entrada = e.id AND v.id_perfil = ?) AS mio ' +
-      'FROM entradas e JOIN perfil_dispositivos pd ON pd.id_dispositivo = e.id_dispositivo WHERE pd.id_perfil = ? ORDER BY e.fecha DESC, e.creado DESC LIMIT 500'
+      'FROM entradas e WHERE e.id_perfil = ? ORDER BY e.fecha DESC, e.creado DESC LIMIT 500'
     ).bind(usuario.id, idAmigo),
-    env.DB.prepare('SELECT pp.id_lugar, MAX(pp.fecha) AS fecha FROM por_probar pp JOIN perfil_dispositivos pd ON pd.id_dispositivo = pp.id_dispositivo WHERE pd.id_perfil = ? GROUP BY pp.id_lugar ORDER BY fecha DESC').bind(idAmigo),
+    env.DB.prepare('SELECT id_lugar, MAX(fecha) AS fecha FROM por_probar WHERE id_perfil = ? GROUP BY id_lugar ORDER BY fecha DESC LIMIT 500').bind(idAmigo),
     env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(idAmigo),
     env.DB.prepare('SELECT usuario FROM cuentas WHERE id_perfil = ?').bind(idAmigo)
   ]);
@@ -585,65 +632,75 @@ async function perfilAmigo(request, env, url) {
 
 async function mandarCorreosResumen(env) {
   if (!env.RESEND_API_KEY || !env.CORREO_DESDE || !env.URL_APP) return 0;
-  // Solo desde el día del resumen y desde las 9 a. m. de Bogotá
-  const hoy = ahora();
+  // Solo desde el día del resumen y desde las 9 a. m. de Bogotá (UTC−5, sin horario de verano)
+  const bogota = new Date(Date.now() - 5 * 3600000).toISOString();
   const desde = /^\d{4}-\d{2}-\d{2}$/.test(env.RESUMEN_DESDE || '') ? env.RESUMEN_DESDE : '2026-12-31';
-  if (hoy.slice(0, 10) < desde || Number(hoy.slice(11, 13)) < 9) return 0;
+  if (bogota.slice(0, 10) < desde || Number(bogota.slice(11, 13)) < 9) return 0;
+  // Primero los que nunca se intentaron. Los que no tenían anotaciones se vuelven a revisar si sobra cupo,
+  // por si anotaron después.
   const { results } = await env.DB.prepare(
     'SELECT c.id_perfil, c.correo, p.nombre, ' +
-    '(SELECT COUNT(DISTINCT e.id_lugar) FROM entradas e JOIN perfil_dispositivos pd ON pd.id_dispositivo = e.id_dispositivo WHERE pd.id_perfil = c.id_perfil) AS sitios ' +
-    'FROM cuentas c JOIN perfiles p ON p.id = c.id_perfil WHERE c.avisar = 1 AND c.correo IS NOT NULL AND c.avisado IS NULL LIMIT 40'
+    '(SELECT COUNT(DISTINCT e.id_lugar) FROM entradas e WHERE e.id_perfil = c.id_perfil) AS sitios ' +
+    "FROM cuentas c JOIN perfiles p ON p.id = c.id_perfil WHERE c.avisar = 1 AND c.correo IS NOT NULL AND (c.avisado IS NULL OR c.avisado = 'sin-datos') " +
+    'ORDER BY (c.avisado IS NOT NULL) LIMIT 40'
   ).all();
   let enviados = 0;
   for (const f of results) {
-    if (!f.sitios) {   // sin anotaciones no hay resumen que mandar
+    if (!f.sitios) {   // sin anotaciones no hay resumen que mandar (todavía)
       await env.DB.prepare('UPDATE cuentas SET avisado = ? WHERE id_perfil = ?').bind('sin-datos', f.id_perfil).run();
       continue;
     }
+    // Se marca ANTES de enviar: si el Worker se cae a mitad de camino, nadie recibe el correo dos veces.
+    const marca = await env.DB.prepare("UPDATE cuentas SET avisado = 'enviando' WHERE id_perfil = ? AND (avisado IS NULL OR avisado = 'sin-datos')").bind(f.id_perfil).run();
+    if (!marca.meta.changes) continue;
     const enlace = env.URL_APP.replace(/\/$/, '') + '/?resumen=1';
     const texto = 'Hola, ' + f.nombre + '. Este diciembre anotaste ' + f.sitios + (f.sitios === 1 ? ' buñuelo' : ' buñuelos') + ' en Apetitosos. Tu resumen ya está listo: ' + enlace;
     const html = '<div style="font-family:Arial,sans-serif;font-size:16px;line-height:1.5;color:#312A20">' +
       '<p>Hola, ' + escaparHtml(f.nombre) + '.</p><p>Este diciembre anotaste ' + f.sitios + (f.sitios === 1 ? ' buñuelo' : ' buñuelos') + ' en Apetitosos. Tu resumen ya está listo.</p>' +
-      '<p><a href="' + enlace + '" style="display:inline-block;padding:14px 22px;border-radius:28px;background:#F2C230;color:#312A20;font-weight:bold;text-decoration:none">Ver mi resumen buñuelero</a></p></div>';
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer ' + env.RESEND_API_KEY, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: env.CORREO_DESDE, to: [f.correo], subject: 'Tu temporada en buñuelos ya está servida', text: texto, html })
-    });
-    if (r.ok) {
-      await env.DB.prepare('UPDATE cuentas SET avisado = ? WHERE id_perfil = ?').bind(ahora(), f.id_perfil).run();
-      enviados++;
+      '<p><a href="' + escaparHtml(enlace) + '" style="display:inline-block;padding:14px 22px;border-radius:28px;background:#F2C230;color:#312A20;font-weight:bold;text-decoration:none">Ver mi resumen buñuelero</a></p></div>';
+    let bien = false;
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + env.RESEND_API_KEY, 'content-type': 'application/json', 'Idempotency-Key': 'resumen-' + desde + '-' + f.id_perfil },
+        body: JSON.stringify({ from: env.CORREO_DESDE, to: [f.correo], subject: 'Tu temporada en buñuelos ya está servida', text: texto, html })
+      });
+      bien = r.ok;
+    } catch (e) {
+      console.error('correo del resumen', f.id_perfil, e && e.message);
     }
+    // Un destinatario que falla no detiene a los demás: vuelve a la fila para la próxima vuelta.
+    await env.DB.prepare('UPDATE cuentas SET avisado = ? WHERE id_perfil = ?').bind(bien ? ahora() : null, f.id_perfil).run();
+    if (bien) enviados++;
   }
   return enviados;
+}
+
+/** Limpieza diaria: sesiones vencidas, conteos viejos y bloqueos de clave que ya pasaron. */
+async function limpiar(env) {
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM sesiones WHERE vence < ?').bind(new Date().toISOString()),
+    env.DB.prepare('DELETE FROM limites WHERE dia < ?').bind(diasAtras(3)),
+    env.DB.prepare('UPDATE cuentas SET bloqueo_hasta = NULL, intentos = 0 WHERE bloqueo_hasta IS NOT NULL AND bloqueo_hasta < ?').bind(new Date().toISOString())
+  ]);
+}
+
+/** Informes de la Content-Security-Policy (por ahora en modo solo-informe): quedan en los registros del Worker. */
+async function reporteCsp(request) {
+  const texto = (await request.text().catch(() => '')).slice(0, 2000);
+  console.warn('csp', texto);
+  return new Response(null, { status: 204 });
 }
 function escaparHtml(t) { return String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 // ====================== CUENTAS Y AMIGOS ======================
-// Supabase solo se usa para "Entrar con Google". Los perfiles y las amistades viven aquí, en D1.
-// Del usuario de Google se guarda únicamente su número interno (id). El correo no se guarda.
-
-const sesiones = new Map();   // memoria corta: token → { usuario, vence }
+// Cuentas propias (usuario y contraseña). El cliente manda "Authorization: Bearer bm_…".
 
 async function usuarioDe(request, env) {
   const cabecera = request.headers.get('Authorization') || '';
   const token = cabecera.startsWith('Bearer ') ? cabecera.slice(7).trim() : '';
-  if (!token || token.length > 4096) return null;
-  if (token.startsWith(PREFIJO_SESION)) return usuarioDeSesionPropia(env, token);
-  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) return null;
-  const guardado = sesiones.get(token);
-  if (guardado && guardado.vence > Date.now()) return guardado.usuario;
-  const r = await fetch(env.SUPABASE_URL.replace(/\/$/, '') + '/auth/v1/user', {
-    headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: 'Bearer ' + token }
-  });
-  if (!r.ok) return null;
-  const u = await r.json().catch(() => null);
-  if (!u || !u.id) return null;
-  const meta = u.user_metadata || {};
-  const usuario = { id: 'g-' + u.id, nombreGoogle: String(meta.full_name || meta.name || '').split(' ')[0] };
-  if (sesiones.size > 500) sesiones.clear();
-  sesiones.set(token, { usuario, vence: Date.now() + 5 * 60000 });
-  return usuario;
+  if (!token.startsWith(PREFIJO_SESION) || token.length > 200) return null;
+  return usuarioDeSesionPropia(env, token);
 }
 
 function aPerfil(f) { return f ? { id: f.id, nombre: f.nombre, color: f.color, codigo: f.codigo, cuatro: f.cuatro || null, avatar: leerAvatar(f.avatar) } : null; }
@@ -653,7 +710,7 @@ const PERSONAJES = ['oso', 'zorro', 'perro', 'coneja', 'gata'];
 const FONDOS = ['mostaza', 'salvia', 'naranja', 'arena', 'rojo'];
 function leerAvatar(t) {
   let a = t;
-  if (typeof t === 'string') { try { a = JSON.parse(t); } catch (e) { return null; } }
+  if (typeof t === 'string') { try { a = JSON.parse(t); } catch { return null; } }
   if (!a || typeof a !== 'object' || !PERSONAJES.includes(a.p)) return null;
   return {
     p: a.p,
@@ -662,19 +719,26 @@ function leerAvatar(t) {
     frase: limpiarTexto(a.frase, 60)
   };
 }
-function leerCuatro(t) { try { const a = JSON.parse(t || 'null'); return Array.isArray(a) && a.length === 4 ? a.map((x) => (typeof x === 'string' ? x.slice(0, 40) : null)) : null; } catch (e) { return null; } }
+function leerCuatro(t) { try { const a = JSON.parse(t || 'null'); return Array.isArray(a) && a.length === 4 ? a.map((x) => (typeof x === 'string' ? x.slice(0, 40) : null)) : null; } catch { return null; } }
 
 async function perfilDe(env, idUsuario) {
   return aPerfil(await env.DB.prepare('SELECT * FROM perfiles WHERE id = ?').bind(idUsuario).first());
 }
 
-/** Este teléfono queda unido a la cuenta: así sus "probados" cuentan para los amigos. */
-async function unirDispositivo(env, idPerfil, idDispositivo) {
-  if (!dispositivoValido(idDispositivo)) return;
-  await env.DB.prepare(
-    'INSERT INTO perfil_dispositivos (id_dispositivo, id_perfil, fecha) VALUES (?, ?, ?) ' +
-    'ON CONFLICT(id_dispositivo) DO UPDATE SET id_perfil = excluded.id_perfil, fecha = excluded.fecha WHERE id_perfil != excluded.id_perfil'
-  ).bind(idDispositivo, idPerfil, ahora()).run();
+/**
+ * Al crear cuenta o entrar, el teléfono se une a la cuenta y lo que se anotó en él SIN cuenta (antes de que
+ * fuera obligatoria) pasa a esa cuenta. Un teléfono que ya pertenece a otra cuenta NUNCA cambia de dueño:
+ * en ese caso se responde ajeno = true y el navegador estrena un id nuevo.
+ */
+async function reclamarDispositivo(env, idPerfil, idDispositivo) {
+  if (!dispositivoValido(idDispositivo)) return { ajeno: false };
+  await env.DB.prepare('INSERT INTO perfil_dispositivos (id_dispositivo, id_perfil, fecha) VALUES (?, ?, ?) ON CONFLICT(id_dispositivo) DO NOTHING')
+    .bind(idDispositivo, idPerfil, ahora()).run();
+  const dueno = await env.DB.prepare('SELECT id_perfil FROM perfil_dispositivos WHERE id_dispositivo = ?').bind(idDispositivo).first();
+  if (!dueno || dueno.id_perfil !== idPerfil) return { ajeno: true };
+  await env.DB.batch(['entradas', 'por_probar', 'seguimientos', 'votos'].map((t) =>
+    env.DB.prepare('UPDATE ' + t + ' SET id_perfil = ? WHERE id_dispositivo = ? AND id_perfil IS NULL').bind(idPerfil, idDispositivo)));
+  return { ajeno: false };
 }
 
 /** Calificaciones de una o varias cuentas, sumando todos sus teléfonos (gana la más reciente). */
@@ -692,35 +756,36 @@ async function amigosDe(env, idPerfil) {
   const [lista, prob] = await env.DB.batch([
     env.DB.prepare('SELECT p.id, p.nombre, p.color, p.avatar, c.usuario, a.fecha FROM amistades a JOIN perfiles p ON p.id = a.b LEFT JOIN cuentas c ON c.id_perfil = p.id WHERE a.a = ? ORDER BY p.nombre').bind(idPerfil),
     env.DB.prepare(
-      'SELECT pd.id_perfil, e.id_lugar, e.cal AS calificacion, e.creado AS fecha FROM amistades a ' +
-      'JOIN perfil_dispositivos pd ON pd.id_perfil = a.b JOIN entradas e ON e.id_dispositivo = pd.id_dispositivo WHERE a.a = ?'
+      'SELECT e.id_perfil, e.id_lugar, e.cal AS calificacion, e.creado AS fecha FROM amistades a ' +
+      'JOIN entradas e ON e.id_perfil = a.b WHERE a.a = ? LIMIT 5000'
     ).bind(idPerfil)
   ]);
   const porPerfil = agruparProbados(prob.results);
   return lista.results.map((f) => ({ id: f.id, nombre: f.nombre, usuario: f.usuario || null, color: f.color, avatar: leerAvatar(f.avatar), desde: Date.parse(f.fecha) || 0, probados: porPerfil[f.id] || {} }));
 }
 
-async function yo(request, env, url) {
+async function yo(request, env) {
   const usuario = await usuarioDe(request, env);
   if (!usuario) return { ok: true, activo: true, conectado: false };
   const perfil = await perfilDe(env, usuario.id);
-  if (!perfil) return { ok: true, activo: true, conectado: true, perfil: null, nombreSugerido: usuario.nombreGoogle };
-  await unirDispositivo(env, perfil.id, url.searchParams.get('d'));
+  if (!perfil) return { ok: true, activo: true, conectado: true, perfil: null };
   const [amigos, cuenta, solicitudes] = await Promise.all([
     amigosDe(env, perfil.id),
-    env.DB.prepare('SELECT usuario, correo, avisar FROM cuentas WHERE id_perfil = ?').bind(perfil.id).first(),
+    env.DB.prepare('SELECT usuario, correo, avisar, acepto_datos FROM cuentas WHERE id_perfil = ?').bind(perfil.id).first(),
     solicitudesDe(env, perfil.id)
   ]);
   return {
     ok: true, activo: true, conectado: true, perfil, amigos, solicitudes,
-    cuenta: cuenta ? { usuario: cuenta.usuario, correo: cuenta.correo || '', avisar: !!cuenta.avisar } : null
+    cuenta: cuenta ? { usuario: cuenta.usuario, correo: cuenta.correo || '', avisar: !!cuenta.avisar, aceptoDatos: !!cuenta.acepto_datos } : null
   };
 }
 
-async function verInvitacion(env, codigo) {
-  const c = String(codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
-  if (!c) return { ok: false };
-  const f = await env.DB.prepare('SELECT nombre FROM perfiles WHERE codigo = ?').bind(c).first();
+/** Nombre de quien invita, para la pantalla de invitación. Va por POST (el código no queda en URLs) y gasta cupo. */
+async function verInvitacion(request, env) {
+  const control = await controlar(request, env, null, false, true);
+  if (!control.ok) return control;
+  const c = String((await leerCuerpo(request)).codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
+  const f = c && await env.DB.prepare('SELECT nombre FROM perfiles WHERE codigo = ?').bind(c).first();
   return f ? { ok: true, nombre: f.nombre } : { ok: false, mensaje: 'Esa invitación no existe o ya no sirve.' };
 }
 
@@ -746,7 +811,6 @@ async function guardarPerfil(request, env) {
   }
   const perfil = await perfilDe(env, usuario.id);
   if (!perfil) return { ok: false, mensaje: 'No pudimos crear tu perfil. Intenta de nuevo.' };
-  await unirDispositivo(env, perfil.id, cuerpo.idDispositivo);
   return { ok: true, perfil };
 }
 
@@ -755,24 +819,18 @@ async function agregarAmigo(request, env) {
   if (!usuario) return { ok: false, sesion: true, mensaje: 'Entra a tu cuenta para aceptar la invitación.' };
   const perfil = await perfilDe(env, usuario.id);
   if (!perfil) return { ok: false, sinPerfil: true, mensaje: 'Primero elige tu nombre.' };
+  // El cupo se gasta ANTES de consultar el código: así no sirve para probar códigos al azar.
+  const control = await controlar(request, env, null, false, true);
+  if (!control.ok) return control;
+  if (!(await cuota(env, 'canje:' + perfil.id, CANJES_POR_DIA))) return { ok: false, mensaje: 'Aceptaste muchas invitaciones hoy. Vuelve mañana.' };
   const cuerpo = await leerCuerpo(request);
   const codigo = String(cuerpo.codigo || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);
   const otro = codigo && await env.DB.prepare('SELECT * FROM perfiles WHERE codigo = ?').bind(codigo).first();
   if (!otro) return { ok: false, mensaje: 'Esa invitación no existe o ya no sirve.' };
   if (otro.id === perfil.id) return { ok: false, propia: true, mensaje: 'Esa es tu propia invitación. Mándasela a un amigo.' };
-
-  const control = await controlar(request, env, null, false, true);
-  if (!control.ok) return control;
-  const cuantos = await env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(perfil.id).first();
-  if (cuantos && cuantos.n >= MAX_AMIGOS) return { ok: false, mensaje: 'Ya tienes muchísimos amigos en la app.' };
-
-  const fecha = ahora();
-  const [r] = await env.DB.batch([
-    env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(perfil.id, otro.id, fecha),
-    env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(otro.id, perfil.id, fecha),
-    env.DB.prepare('DELETE FROM solicitudes WHERE (de = ? AND para = ?) OR (de = ? AND para = ?)').bind(perfil.id, otro.id, otro.id, perfil.id)
-  ]);
-  return { ok: true, nuevo: !!r.meta.changes, amigo: { id: otro.id, nombre: otro.nombre } };
+  const r = await hacerAmigos(env, perfil.id, otro.id);
+  if (!r.ok) return r;
+  return { ok: true, nuevo: r.nuevo, amigo: { id: otro.id, nombre: otro.nombre } };
 }
 
 // ---------- Solicitudes de amistad por @usuario ----------
@@ -794,6 +852,7 @@ async function buscarAmigo(request, env, url) {
   if (!usuario) return { ok: false, sesion: true, mensaje: 'Entra a tu cuenta para buscar amigos.' };
   const q = limpiarUsuario(url.searchParams.get('u')).replace(/[^a-z0-9._]/g, '').slice(0, 20);
   if (q.length < 3) return { ok: true, resultados: [] };
+  if (!(await cuota(env, 'buscar:' + usuario.id, BUSQUEDAS_POR_DIA))) return { ok: false, mensaje: 'Hiciste muchas búsquedas hoy. Vuelve mañana.' };
   const filas = await env.DB.prepare(
     'SELECT p.id, p.nombre, p.avatar, c.usuario, ' +
     '(SELECT 1 FROM amistades WHERE a = ?1 AND b = p.id) AS amigo, ' +
@@ -807,13 +866,21 @@ async function buscarAmigo(request, env, url) {
   })) };
 }
 
+/** Crea la amistad en los dos sentidos, si ninguno de los dos llegó al tope de amigos. */
 async function hacerAmigos(env, x, y) {
+  const [cx, cy] = await env.DB.batch([
+    env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(x),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM amistades WHERE a = ?').bind(y)
+  ]);
+  if (cx.results[0].n >= MAX_AMIGOS) return { ok: false, mensaje: 'Ya tienes muchísimos amigos en la app.' };
+  if (cy.results[0].n >= MAX_AMIGOS) return { ok: false, mensaje: 'Esa persona ya tiene muchísimos amigos en la app.' };
   const fecha = ahora();
-  await env.DB.batch([
+  const [r] = await env.DB.batch([
     env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(x, y, fecha),
     env.DB.prepare('INSERT OR IGNORE INTO amistades (a, b, fecha) VALUES (?, ?, ?)').bind(y, x, fecha),
     env.DB.prepare('DELETE FROM solicitudes WHERE (de = ? AND para = ?) OR (de = ? AND para = ?)').bind(x, y, y, x)
   ]);
+  return { ok: true, nuevo: !!r.meta.changes };
 }
 
 async function mandarSolicitud(request, env) {
@@ -831,11 +898,16 @@ async function mandarSolicitud(request, env) {
   if (cuantos && cuantos.n >= MAX_AMIGOS) return { ok: false, mensaje: 'Ya tienes muchísimos amigos en la app.' };
   // Si la otra persona ya te había mandado solicitud, quedan amigos de una.
   if (await env.DB.prepare('SELECT 1 FROM solicitudes WHERE de = ? AND para = ?').bind(otro.id, perfil.id).first()) {
-    await hacerAmigos(env, perfil.id, otro.id);
+    const r = await hacerAmigos(env, perfil.id, otro.id);
+    if (!r.ok) return r;
     return { ok: true, estado: 'amigo', amigo: { id: otro.id, nombre: otro.nombre } };
   }
-  const pendientes = await env.DB.prepare('SELECT COUNT(*) AS n FROM solicitudes WHERE de = ?').bind(perfil.id).first();
-  if (pendientes && pendientes.n >= 50) return { ok: false, mensaje: 'Tienes muchas solicitudes sin responder. Espera a que te acepten.' };
+  const [env1, rec1] = await env.DB.batch([
+    env.DB.prepare('SELECT COUNT(*) AS n FROM solicitudes WHERE de = ?').bind(perfil.id),
+    env.DB.prepare('SELECT COUNT(*) AS n FROM solicitudes WHERE para = ?').bind(otro.id)
+  ]);
+  if (env1.results[0].n >= 50) return { ok: false, mensaje: 'Tienes muchas solicitudes sin responder. Espera a que te acepten.' };
+  if (rec1.results[0].n >= MAX_SOLICITUDES_RECIBIDAS) return { ok: false, mensaje: 'Esa persona tiene muchas solicitudes pendientes. Intenta más tarde.' };
   await env.DB.prepare('INSERT OR IGNORE INTO solicitudes (de, para, fecha) VALUES (?, ?, ?)').bind(perfil.id, otro.id, ahora()).run();
   return { ok: true, estado: 'enviada' };
 }
@@ -848,7 +920,8 @@ async function responderSolicitud(request, env) {
   const existe = id && await env.DB.prepare('SELECT 1 FROM solicitudes WHERE de = ? AND para = ?').bind(id, usuario.id).first();
   if (!existe) return { ok: false, mensaje: 'Esa solicitud ya no está.' };
   if (cuerpo.aceptar) {
-    await hacerAmigos(env, usuario.id, id);
+    const r = await hacerAmigos(env, usuario.id, id);
+    if (!r.ok) return r;
     return { ok: true, estado: 'amigo' };
   }
   await env.DB.prepare('DELETE FROM solicitudes WHERE de = ? AND para = ?').bind(id, usuario.id).run();
@@ -880,7 +953,12 @@ function nuevoCodigo() {
  */
 async function controlar(request, env, token, esSitioNuevo, sinCaptcha) {
   const ip = request.headers.get('CF-Connecting-IP') || '';
-  const ipHash = await hash((env.IP_SALT || 'sal-provisional') + '|' + ip);
+  // Sin IP_SALT no se guarda nada: así nunca queda un hash de IP que se pueda revertir con una sal conocida.
+  if (!env.IP_SALT) {
+    console.error('Falta el secreto IP_SALT: las acciones que escriben quedan desactivadas.');
+    return { ok: false, mensaje: 'La app está en mantenimiento. Intenta en un rato.' };
+  }
+  const ipHash = await hash(env.IP_SALT + '|' + ip);
 
   if (!sinCaptcha && env.TURNSTILE_SECRET) {
     if (!token) return { ok: false, captcha: true, mensaje: 'No pudimos comprobar que no eres un robot. Intenta de nuevo.' };
@@ -905,11 +983,15 @@ async function controlar(request, env, token, esSitioNuevo, sinCaptcha) {
       .bind(ipHash, dia).first();
     if (n && n.n >= SITIOS_POR_DIA) return { ok: false, mensaje: 'Ya marcaste muchos sitios hoy. Vuelve mañana para agregar más.' };
   }
-  // De vez en cuando se borran los conteos viejos.
-  if (Math.random() < 0.02) {
-    await env.DB.prepare('DELETE FROM limites WHERE dia < ?').bind(diasAtras(3)).run();
-  }
   return { ok: true, ipHash };
+}
+
+/** Cupo diario con una clave propia (por ejemplo 'buscar:<perfil>'). Comparte la tabla limites. */
+async function cuota(env, clave, max) {
+  const fila = await env.DB.prepare(
+    'INSERT INTO limites (ip_hash, dia, acciones) VALUES (?, ?, 1) ON CONFLICT(ip_hash, dia) DO UPDATE SET acciones = acciones + 1 RETURNING acciones'
+  ).bind('cupo|' + clave, ahora().slice(0, 10)).first();
+  return !fila || fila.acciones <= max;
 }
 
 // ====================== AYUDANTES ======================
@@ -917,12 +999,12 @@ async function controlar(request, env, token, esSitioNuevo, sinCaptcha) {
 function json(datos, estado = 200) {
   return new Response(JSON.stringify(datos), {
     status: estado,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }
+    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' }
   });
 }
 
 async function leerCuerpo(request) {
-  try { return await request.json(); } catch (e) { return {}; }
+  try { return await request.json(); } catch { return {}; }
 }
 
 async function hash(texto) {
